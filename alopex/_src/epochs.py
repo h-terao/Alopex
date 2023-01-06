@@ -18,7 +18,7 @@ from .pytypes import (
     PredFn,
 )
 
-__all__ = ["train_epoch", "eval_epoch", "pred_epoch"]
+__all__ = ["train_epoch", "eval_epoch", "predict_epoch"]
 
 
 def _replicate(tree, devices=None):
@@ -214,17 +214,17 @@ def eval_epoch(
     return summary
 
 
-def pred_epoch(
+def predict_epoch(
     train_state: TrainState,
     iterable: tp.Iterable,
-    pred_fn: PredFn,
+    predict_fn: PredFn,
     epoch_length: int = -1,
     prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
 ) -> Prediction:
-    """Evaluate the model on the given dataset.
+    """Stacking output PyTrees of predict_fn. Maybe useful to experiment generative models.
 
     Args:
         train_state: Flax train state.
@@ -242,7 +242,7 @@ def pred_epoch(
     """
     prefix = prefix or ""
 
-    p_pred_fn = jax.pmap(pred_fn, axis_name=axis_name, devices=devices)
+    p_pred_fn = jax.pmap(predict_fn, axis_name=axis_name, devices=devices)
     train_state = _replicate(train_state, devices)
 
     outputs = []
