@@ -120,7 +120,7 @@ def _summarize_scalars(
 
 
 def train_epoch(
-    train_fn: TrainFn,
+    train_fun: TrainFn,
     prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
@@ -142,7 +142,7 @@ def train_epoch(
     """
     num_devices = len(devices or jax.local_devices())
     prefix = prefix or ""
-    p_train_fn = jax.pmap(train_fn, axis_name=axis_name, devices=devices)
+    p_train_fun = jax.pmap(train_fun, axis_name=axis_name, devices=devices)
     
     def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None = None) -> tuple[TrainState, Summary]:
         train_state = _replicate(train_state, devices)
@@ -159,7 +159,7 @@ def train_epoch(
                 )
                 warnings.warn(msg)
 
-            train_state, scalars = p_train_fn(train_state, batch)
+            train_state, scalars = p_train_fun(train_state, batch)
             accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
 
         train_state = _unreplicate(train_state)
@@ -170,7 +170,7 @@ def train_epoch(
 
 
 def eval_epoch(
-    eval_fn: EvalFn,
+    eval_fun: EvalFn,
     prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
@@ -191,7 +191,7 @@ def eval_epoch(
     """
     num_devices = len(devices or jax.local_devices())
     prefix = prefix or ""
-    p_eval_fn = jax.pmap(eval_fn, axis_name=axis_name, devices=devices)
+    p_eval_fun = jax.pmap(eval_fun, axis_name=axis_name, devices=devices)
     
     def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None = None) -> Summary:
         train_state = _replicate(train_state, devices)
@@ -200,7 +200,7 @@ def eval_epoch(
         for batch, weight, _ in _modify_batches(
             iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
         ):
-            scalars = p_eval_fn(train_state, batch)
+            scalars = p_eval_fun(train_state, batch)
             accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
 
         summary = _summarize_scalars(prefix, accum_scalars)
@@ -209,7 +209,7 @@ def eval_epoch(
     return f
 
 def predict_epoch(
-    predict_fn: PredFn,
+    predict_fun: PredFn,
     prefetch: bool = True,
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
@@ -226,7 +226,7 @@ def predict_epoch(
     Returns:
         A function.
     """
-    p_pred_fn = jax.pmap(predict_fn, axis_name=axis_name, devices=devices)
+    p_pred_fun = jax.pmap(predict_fun, axis_name=axis_name, devices=devices)
     
     def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None=None) -> Prediction:
         train_state = _replicate(train_state, devices)
@@ -235,7 +235,7 @@ def predict_epoch(
         for batch, _, is_remainder in _modify_batches(
             iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
         ):
-            output = p_pred_fn(train_state, batch)
+            output = p_pred_fun(train_state, batch)
             if is_remainder:
                 output = tree_util.tree_map(lambda x: x[0], output)
             else:
