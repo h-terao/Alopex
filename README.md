@@ -1,6 +1,6 @@
 # Alopex
 
-Alopex is a small library that accelerates prototyping of deep learning projects with JAX. *Currently, Alopex is in alpha version and API will be changed in the future.*
+Alopex is a small library that accelerates prototyping of deep learning projects with JAX. Some features are inspired by other awesome libraies. **Currently, Alopex is in alpha version and API will be changed in the future.**
 
 
 ## Installation
@@ -58,8 +58,6 @@ Harvest transformation collects or changes the intermediate values without chang
 The target values are marked by `sow`, and then transform entire function using `plant` or `reap`. `plant` changes the marked values via dict and `reap` collects all marked values as a dict. If you do not transform the entire function, `sow` performs a simple identity function. Harvest transformation is useful to debug functios or take variables that are too difficult to get (such as gradients of not-leaf variables).
 
 ```python
-import alopex as ap
-
 def func(x):
     y = ap.sow(2 * x, tag="test", name="y")
     z = 4 * z
@@ -76,8 +74,6 @@ assert ap.reap(func, tag="test")(1) == jax.jit(ap.reap(func, tag="test"))(1)  # 
 Registry holds callable objects with default arguments. You can register objects via a `Registry.register` method as follows:
 
 ```python
-import alopex as ap
-
 REGISTRY = ap.Registry()
 REGISTRY.register("add", lambda x, y: x+y, y=0)
 
@@ -95,9 +91,3 @@ assert REGISTRY.get("twice")(5) == 10  # 5x2
 
 Actually, Registry is a Python dict object. Thus, you can use all methods of dict such as `Registry.keys`, `Registry.pop` and `Registry.merge`. Alopex also defines `registry` and `register` that are aliases of the instantiated `Registry` object and its register method.
 
-
-### Visualization
-
-***This function is not implemented yet.**
-
-Visualization module provides utilities to visualize model information. For example, GradCAM and landscape of loss values will be implemented.
