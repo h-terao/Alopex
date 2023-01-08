@@ -36,13 +36,16 @@ train_state, summary = ap.train_epoch(train_state, iterable, train_step, prefix=
 assert summary == {"train/acc": 2.0}  # average of (0,1,2,3,4) reported as scalars.
 ```
 
-### Model statistics
+### Statistic transformation
 
 Some statistics are useful to evaluate the efficiency of model inference. Alopex provides some functions to compute such major statistics.
+`flop`, `mac` and `memory_access` support `unit` arguments, and you can easily obtain KFLOPs, GFLOPs, TFLOPs and so on.
 
 ```python
 add = lambda x, y: x + y
+
 ap.flop(add)(1, 2)  # FLOPs
+ap.flop(add, unit="G")(1,2)  # compute GFLOPs
 ap.mac(add)(1,2)  # MACs
 ap.latency(add, num_iters=1000)(1,2) # Seconds per forward pass.
 ap.memory_access(add)(1,2)  # Momory access cost
