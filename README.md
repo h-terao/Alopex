@@ -1,6 +1,6 @@
 # Alopex
 
-Accelerate prototyping of deep learning projects with JAX
+Alopex is a small library that accelerates prototyping of deep learning projects with JAX. *Currently, Alopex is in alpha version and API will be changed in the future.*
 
 
 ## Installation
