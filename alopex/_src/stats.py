@@ -1,107 +1,120 @@
-"""Model and function stats."""
+"""Compute stats of models and functions.
+
+MEMO:
+    - Instead of directly returning stats, transform function that returns stats like harvest?
+"""
 from __future__ import annotations
 import typing as tp
-import time as time_module
+import math
+import time
 
-import numpy
+import numpy as np
 import jax
 from jax import tree_util
 import chex
 
 
-def count_flops(
-    f: tp.Callable,
-    *args,
-    static_argnums: int | tp.Sequence[int] = (),
-    **kwargs,
-) -> int:
-    """Compute FLOPs of apply_fn.
+def _convert_size(v: chex.Scalar, unit: str | None = None) -> chex.Scalar:
+    units = [None, "K", "M", "G", "T", "P", "E", "Z"]
+    unit = None if unit is None else unit.upper()
+    assert unit in units, f"Invalid unit is specified. Use {units}."
+
+    idx = units.index(unit)
+    return v / math.pow(1000, idx)
+
+
+def count_flops(fn: tp.Callable, *args, unit: str | None = None, **kwargs) -> chex.Scalar:
+    """Compute FLOPs of a function.
 
     Modify from:
       https://github.com/google-research/scenic/blob/main/scenic/common_lib/debug_utils.py
 
     Args:
-        apply_fn: A function to compute FLOPs.
-        fuse_multiply_add: If true, count a multiply and add (also known as
-            "multiply-accumulate" or "MAC") as 1 FLOP rather than 2 (as done by the
-            HLO analysis). This is commonly used in literature.
-        *args, **kwargs: Inputs of `apply_fn`.
+        fn: A function to compute FLOPs.
+        unit: A unit of FLOPs.
+            "K", "M", "G", "T", "P", "E" and "Z" are available.
+        *args, **kwargs: Function arguments.
 
     Returns:
-        FLOPs of `apply_fun`
+        FLOPs of function.
     """
-    computation = jax.xla_computation(f, static_argnums=static_argnums)(*args, **kwargs)
+    computation = jax.xla_computation(fn)(*args, **kwargs)
     module = computation.as_hlo_module()
     client = jax.lib.xla_bridge.get_backend()
     analysis = jax.lib.xla_client._xla.hlo_module_cost_analysis(client, module)
     flops = analysis["flops"]
-    return flops
+    return _convert_size(flops, unit)
 
 
 def count_macs(
-    f: tp.Callable,
+    fn: tp.Callable,
     *args,
-    static_argnums: int | tp.Sequence[int] = (),
+    unit: str | None = None,
     **kwargs,
-):
-    """Compute MACs of a function.
-
-    Modify from:
-      https://github.com/google-research/scenic/blob/main/scenic/common_lib/debug_utils.py
+) -> chex.Scalar:
+    """Compute MACs of a function. This is more commonly used than FLOPs in literature.
 
     Args:
-        f: A function to count MACs.
-        fuse_multiply_add: If true, count a multiply and add (also known as
-            "multiply-accumulate" or "MAC") as 1 FLOP rather than 2 (as done by the
-            HLO analysis). This is commonly used in literature.
-        *args, **kwargs: Inputs of `apply_fn`.
+        fn: A function to count MACs.
+        unit: A unit of MACs.
+            "K", "M", "G", "T", "P", "E" and "Z" are available.
+        *args, **kwargs: Function arguments.
 
     Returns:
-        FLOPs of `apply_fun`
+        MACs of function.
     """
-    flops = count_flops(f, *args, static_argnums=static_argnums, **kwargs)
-    return flops / 2
+    return count_flops(fn, *args, unit=unit, **kwargs) / 2
 
 
-def count_params(tree: chex.ArrayTree) -> int:
+def count_params(tree: chex.ArrayTree, unit: str | None = None) -> chex.Scalar:
     """Count number of elements stored in PyTree.
 
     Args:
         tree: A PyTree to count elements.
+        unit: A unit of number of parameters.
+            "K", "M", "G", "T", "P", "E" and "Z" are available.
 
     Returns:
         Number of elements stored in tree.
     """
-    return sum([x.size for x in tree_util.tree_leaves(tree)])
+    tree_size = sum([x.size for x in tree_util.tree_leaves(tree)])
+    return _convert_size(tree_size, unit)
 
 
-def time(f: tp.Callable, *args, n: int = 100, warmup: int = 0, **kwargs) -> dict[str, float]:
+class TimeStats(tp.NamedTuple):
+    avg: float
+    std: float
+    max: float
+    min: float
+    median: float
+
+
+def time_fn(fn: tp.Callable, *args, n: int = 100, warmup: int = 0, **kwargs) -> TimeStats:
     """Time a function.
 
     Args:
-        f: A function to time.
+        fn: A function to time.
         n: Number of steps to time.
         warmup: Number of warmup steps.
         *args, **kwargs: Arguments of `f`.
 
     Returns:
-        A dict that contains avg, std, max, min and
-        median of elapsed time.
+        A namedtuple of avg, std, max, min and median of elapsed times to run fn.
     """
 
     def call():
-        start_time = time_module.time()
-        jax.block_until_ready(f(*args, **kwargs))
-        return time_module.time() - start_time
+        start_time = time.time()
+        jax.block_until_ready(fn(*args, **kwargs))
+        return time.time() - start_time
 
     for _ in range(warmup):
         call()
 
-    x = numpy.array([call() for _ in range(n)])
-    return {
-        "avg": numpy.mean(x),
-        "std": numpy.std(x),
-        "max": numpy.max(x),
-        "min": numpy.min(x),
-        "median": numpy.median(x),
-    }
+    x = np.array([call() for _ in range(n)])
+    return TimeStats(
+        avg=np.mean(x),
+        std=np.std(x),
+        max=np.max(x),
+        min=np.min(x),
+        median=np.std(x),
+    )

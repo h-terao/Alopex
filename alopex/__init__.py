@@ -1,6 +1,5 @@
 # flake8: noqa
 from ._src import functions
-from ._src import utils
 
 from ._src.epochs import train_epoch
 from ._src.epochs import eval_epoch
@@ -13,7 +12,7 @@ from ._src.registry import register
 from ._src.stats import count_flops
 from ._src.stats import count_macs
 from ._src.stats import count_params
-from ._src.stats import time
+from ._src.stats import time_fn
 
 from ._src.harvest import sow
 from ._src.harvest import harvest

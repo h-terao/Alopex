@@ -1,3 +1,4 @@
+import typing as tp
 import functools
 
 
@@ -8,56 +9,33 @@ class Registry(dict):
     so you can use dict methods like pop, merge, etc.
     """
 
-    def register(self, name: str, f=None, **kwargs):
+    def register(self, name: str, fn: tp.Callable | None = None, **kwargs) -> tp.Callable:
         """Register a callable object in this registry.
 
         Args:
-            name: Name of f to register.
-            f: A callable object to register. If None,
-                this method works as a decorator.
-            **kwargs: Default values of f. Useful to register
+            name: Name of a callable object to register.
+            fn: A callable object to register.
+                If None, this method works as a decorator.
+            **kwargs: Default values of a callable object. Useful to register
                 callable with different parameters.
 
         Raises:
             If name is already registered, raise an error.
-
-        Example:
-            Directly add a callable object.
-            ```python
-            f = lambda x,y: x+y
-            registry = Registry()
-
-            # new_f is equal to partial(f, y=1).
-            new_f = registry.register("add", f, y=1)
-
-            assert registry.get("add")(10) == 11
-            assert new_f(10) == 11
-            ```
-
-            Use as a decorator.
-            ```python
-            registry = Registry()
-
-            @registry.register("add", y=1)
-            def f(x, y): x+y
-
-            assert registry.get("add")(10) == 11
-            ```
         """
         if name in self:
             raise RuntimeError(f"{name} is already registered.")
 
-        if f is None:
+        if fn is None:
             # decorator.
             def deco(f):
                 self[name] = functools.partial(f, **kwargs)
-                return f
+                return fn
 
             return deco
         else:
-            new_f = functools.partial(f, **kwargs)
-            self[name] = new_f
-            return new_f
+            new_fn = functools.partial(fn, **kwargs)
+            self[name] = new_fn
+            return new_fn
 
 
 # Create a global registry for the simple usage.

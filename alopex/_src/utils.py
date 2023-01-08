@@ -4,8 +4,10 @@ import logging
 
 from flax import traverse_util
 
+logger = logging.getLogger(__name__)
 
-def maybe_load_arrays(tree: tp.Mapping, to_load: tp.Mapping, verbose: bool = False):
+
+def maybe_load_variables(tree: tp.Mapping, to_load: tp.Mapping, verbose: bool = False):
     def warn(msg):
         if verbose:
             logging.warn(msg)
@@ -20,12 +22,11 @@ def maybe_load_arrays(tree: tp.Mapping, to_load: tp.Mapping, verbose: bool = Fal
             if value.shape == new_value.shape:
                 value = new_value
             else:
-                warn(
-                    (
-                        f"Mismatch the shape of {key} ({value.shape} != {new_value.shape}). "
-                        "This array is not updated."
-                    )
+                msg = (
+                    f"Mismatch the shape of {key} ({value.shape} != {new_value.shape}). "
+                    "This array is not updated."
                 )
+                logger.warn(msg)
         else:
             warn(f"{key} is not found in to_load. This array is not updated.")
         xs[key] = value
