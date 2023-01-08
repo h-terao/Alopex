@@ -120,22 +120,16 @@ def _summarize_scalars(
 
 
 def train_epoch(
-    train_state: TrainState,
-    iterable: tp.Iterable,
     train_fn: TrainFn,
-    epoch_length: int = -1,
     prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
-) -> tuple[TrainState, Summary]:
-    """Train the model on the given dataset.
+) -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], tuple[TrainState, Summary]]:
+    """Changes a step function to update models for an epoch.
 
     Args:
-        train_state: Flax train state.
-        iterable: Data loader that yields batches.
         train_fn: Training function that updates train_state.
-        epoch_length: If the number of batches reaches this value, stop training.
         prefix: Prefix of scalars.
         prefetch: If True, prefetch batches.
             This flag may shortens the processing time when you use GPUs.
@@ -143,52 +137,49 @@ def train_epoch(
         devices: Device list. If None, all visible devices are used.
 
     Returns:
-        Updated train_state and average metrics.
+        Function that updates models for an epoch.
 
     """
     num_devices = len(devices or jax.local_devices())
     prefix = prefix or ""
-
     p_train_fn = jax.pmap(train_fn, axis_name=axis_name, devices=devices)
-    train_state = _replicate(train_state, devices)
+    
+    def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None = None) -> tuple[TrainState, Summary]:
+        train_state = _replicate(train_state, devices)
 
-    accum_scalars = {}
-    for batch, weight, is_remainder in _modify_batches(
-        iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
-    ):
-        if is_remainder:
-            msg = (
-                "You set batch size that is not divisible by the number of devices "
-                f"(#devices={num_devices}). This configuration will perform inefficient "
-                "and not expected training behaviour. "
-            )
-            warnings.warn(msg)
+        accum_scalars = {}
+        for batch, weight, is_remainder in _modify_batches(
+            iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
+        ):
+            if is_remainder:
+                msg = (
+                    "You set batch size that is not divisible by the number of devices "
+                    f"(#devices={num_devices}). This configuration will perform inefficient "
+                    "and not expected training behaviour. "
+                )
+                warnings.warn(msg)
 
-        train_state, scalars = p_train_fn(train_state, batch)
-        accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
+            train_state, scalars = p_train_fn(train_state, batch)
+            accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
 
-    train_state = _unreplicate(train_state)
-    summary = _summarize_scalars(prefix, accum_scalars)
-    return train_state, summary
+        train_state = _unreplicate(train_state)
+        summary = _summarize_scalars(prefix, accum_scalars)
+        return train_state, summary
+    
+    return f
 
 
 def eval_epoch(
-    train_state: TrainState,
-    iterable: tp.Iterable,
     eval_fn: EvalFn,
-    epoch_length: int = -1,
     prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
-) -> Summary:
-    """Evaluate the model on the given dataset.
+) -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], Summary]:
+    """Changes a step function to evaluate models for an epoch.
 
     Args:
-        train_state: Flax train state.
-        iterable: Data loader that yields batches.
         eval_fn: Evaluation function that returns metrics.
-        epoch_length: If the number of batches reaches this value, stop evaluating.
         prefix: Prefix of scalars.
         prefetch: If True, prefetch batches.
             This flag may shortens the processing time when you use GPUs.
@@ -196,65 +187,62 @@ def eval_epoch(
         devices: Device to use. If None, all visible devices are used.
 
     Returns:
-        Average metrics.
+        Function to average summary of an epoch.
     """
+    num_devices = len(devices or jax.local_devices())
     prefix = prefix or ""
-
     p_eval_fn = jax.pmap(eval_fn, axis_name=axis_name, devices=devices)
-    train_state = _replicate(train_state, devices)
+    
+    def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None = None) -> Summary:
+        train_state = _replicate(train_state, devices)
 
-    accum_scalars = {}
-    for batch, weight, _ in _modify_batches(
-        iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
-    ):
-        scalars = p_eval_fn(train_state, batch)
-        accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
+        accum_scalars = {}
+        for batch, weight, _ in _modify_batches(
+            iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
+        ):
+            scalars = p_eval_fn(train_state, batch)
+            accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
 
-    summary = _summarize_scalars(prefix, accum_scalars)
-    return summary
-
+        summary = _summarize_scalars(prefix, accum_scalars)
+        return summary
+    
+    return f
 
 def predict_epoch(
-    train_state: TrainState,
-    iterable: tp.Iterable,
     predict_fn: PredFn,
-    epoch_length: int = -1,
-    prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
-) -> Prediction:
-    """Stacking output PyTrees of predict_fn. Maybe useful to experiment generative models.
+)  -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], Prediction]:
+    """Changes a step function to stack PyTrees for an epoch.
 
     Args:
-        train_state: Flax train state.
-        iterable: Data loader that yields batches.
         eval_fn: Evaluation function that returns metrics.
-        epoch_length: If the number of batches reaches this value, stop evaluating.
-        prefix: Prefix of scalars.
         prefetch: If True, prefetch batches.
             This flag may shortens the processing time when you use GPUs.
         axis_name: Axis name for `jax.pmap`.
         devices: Device to use. If None, all visible devices are used.
 
     Returns:
-        Average metrics.
+        A function.
     """
-    prefix = prefix or ""
-
     p_pred_fn = jax.pmap(predict_fn, axis_name=axis_name, devices=devices)
-    train_state = _replicate(train_state, devices)
+    
+    def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None=None) -> Prediction:
+        train_state = _replicate(train_state, devices)
 
-    outputs = []
-    for batch, _, is_remainder in _modify_batches(
-        iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
-    ):
-        output = p_pred_fn(train_state, batch)
-        if is_remainder:
-            output = tree_util.tree_map(lambda x: x[0], output)
-        else:
-            output = tree_util.tree_map(lambda x: x.reshape(-1, *x.shape[2:]), output)
-        outputs.append(output)
+        outputs = []
+        for batch, _, is_remainder in _modify_batches(
+            iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
+        ):
+            output = p_pred_fn(train_state, batch)
+            if is_remainder:
+                output = tree_util.tree_map(lambda x: x[0], output)
+            else:
+                output = tree_util.tree_map(lambda x: x.reshape(-1, *x.shape[2:]), output)
+            outputs.append(output)
 
-    output = tree_util.tree_map(lambda *xs: jnp.concatenate(xs, axis=0), *outputs)
-    return output
+        output = tree_util.tree_map(lambda *xs: jnp.concatenate(xs, axis=0), *outputs)
+        return output
+    
+    return f
