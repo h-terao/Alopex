@@ -40,11 +40,13 @@ assert summary == {"train/acc": 2.0}  # average of (0,1,2,3,4) reported as scala
 
 Some statistics are useful to evaluate the efficiency of model inference. Alopex provides some functions to compute such major statistics.
 
-Below is a list of Alopex's functions:
-- count_flops: Count FLOPs of function.
-- count_macs: Count MACs of function.
-- count_params: Count model parameters.
-- time_fn: Time a function.
+```python
+add = lambda x, y: x + y
+ap.flop(add)(1, 2)  # FLOPs
+ap.mac(add)(1,2)  # MACs
+ap.latency(add, num_iters=1000)(1,2) # Seconds per forward pass.
+ap.memory_access(add)(1,2)  # Momory access cost
+```
 
 
 ### Harvest transformation
