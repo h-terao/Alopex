@@ -1,69 +1,157 @@
-"""Compute stats of models and functions.
-
-MEMO:
-    - Instead of directly returning stats, transform function that returns stats like harvest?
-"""
 from __future__ import annotations
 import typing as tp
 import math
 import time
 
-import numpy as np
 import jax
 from jax import tree_util
 import chex
 
 
-def _convert_size(v: chex.Scalar, unit: str | None = None) -> chex.Scalar:
+def _convert_size(v: chex.Scalar, unit: str | None = None, base: int = 1000) -> chex.Scalar:
     units = [None, "K", "M", "G", "T", "P", "E", "Z"]
     unit = None if unit is None else unit.upper()
     assert unit in units, f"Invalid unit is specified. Use {units}."
 
     idx = units.index(unit)
-    return v / math.pow(1000, idx)
+    return v / math.pow(base, idx)
 
 
-def count_flops(fn: tp.Callable, *args, unit: str | None = None, **kwargs) -> chex.Scalar:
-    """Compute FLOPs of a function.
-
-    Modify from:
-      https://github.com/google-research/scenic/blob/main/scenic/common_lib/debug_utils.py
-
-    Args:
-        fn: A function to compute FLOPs.
-        unit: A unit of FLOPs.
-            "K", "M", "G", "T", "P", "E" and "Z" are available.
-        *args, **kwargs: Function arguments.
-
-    Returns:
-        FLOPs of function.
-    """
-    computation = jax.xla_computation(fn)(*args, **kwargs)
-    module = computation.as_hlo_module()
-    client = jax.lib.xla_bridge.get_backend()
-    analysis = jax.lib.xla_client._xla.hlo_module_cost_analysis(client, module)
-    flops = analysis["flops"]
-    return _convert_size(flops, unit)
-
-
-def count_macs(
-    fn: tp.Callable,
-    *args,
+def flop(
+    fun: tp.Callable,
     unit: str | None = None,
-    **kwargs,
-) -> chex.Scalar:
-    """Compute MACs of a function. This is more commonly used than FLOPs in literature.
+    static_argnums: int | tp.Iterable[int] = (),
+    backend: str | None = None,
+    donate_argnums: int | tp.Iterable[int] = (),
+) -> tp.Callable[..., chex.Scalar]:
+    """Creates a function that count floating operations (FLOPs) of fun.
 
     Args:
-        fn: A function to count MACs.
-        unit: A unit of MACs.
-            "K", "M", "G", "T", "P", "E" and "Z" are available.
-        *args, **kwargs: Function arguments.
+        fun: Function to count FLOPs.
+        unit: Unit of FLOPs. None, K, M, G, T, P, E or Z.
+        static_argnums: An optional int or collection of ints that specify which positional
+            arguments to treat as static (compile-time constant).
+        backend: A string representing the XLA backend.
+        donate_argnums: Specify which positional argument buffers are "donated" to the computation.
 
     Returns:
-        MACs of function.
+        A wrapped version of fun.
+
+    NOTE:
+        Modify from
+        https://github.com/google-research/scenic/blob/main/scenic/common_lib/debug_utils.py
     """
-    return count_flops(fn, *args, unit=unit, **kwargs) / 2
+
+    def f(*args, **kwargs) -> chex.Scalar:
+        computation = jax.xla_computation(
+            fun,
+            static_argnums=static_argnums,
+            backend=backend,
+            donate_argnums=donate_argnums,
+        )(*args, **kwargs)
+        module = computation.as_hlo_module()
+        client = jax.lib.xla_bridge.get_backend()
+        analysis = jax.lib.xla_client._xla.hlo_module_cost_analysis(client, module)
+        return _convert_size(analysis["flops"], unit)
+
+    return f
+
+
+def mac(
+    fun: tp.Callable,
+    unit: str | None = None,
+    static_argnums: int | tp.Iterable[int] = (),
+    backend: str | None = None,
+    donate_argnums: int | tp.Iterable[int] = (),
+) -> tp.Callable[..., chex.Scalar]:
+    """Creates a function that count multiply-accumulate operation (MACs) of fun.
+        MAC is more commonly used than FLOP in literature.
+
+    Args:
+        fun: Function to count MACs.
+        unit: Unit of MACs. None, K, M, G, T, P, E or Z.
+        static_argnums: An optional int or collection of ints that specify which positional
+            arguments to treat as static (compile-time constant).
+        backend: A string representing the XLA backend.
+        donate_argnums: Specify which positional argument buffers are "donated" to the computation.
+
+    Returns:
+        A wrapped version of fun.
+    """
+
+    f = flop(fun, unit, static_argnums, backend, donate_argnums)
+    f = lambda *args, **kwargs: f(*args, **kwargs) / 2
+    return f
+
+
+def latency(
+    fun: tp.Callable,
+    num_iters: int = 100,
+    warmup_iters: int = 0,
+) -> tp.Callable[..., float]:
+    """Creates a function that computes average latency (sec) of fun.
+
+    Args:
+        fun: Function to time.
+        num_iters: Number of iterations used to compute average runtime of fun.
+        warmup_iters: Number of iterations used to warmup fun.
+
+    Returns:
+        Average runtime of fun.
+    """
+
+    def call(*args, **kwargs) -> None:
+        fun(*args, **kwargs)
+        jax.random.uniform(jax.random.PRNGKey(0)).block_until_ready()
+
+    def f(*args, **kwargs):
+        [call(*args, **kwargs) for _ in range(warmup_iters)]
+
+        start_time = time.time()
+        [call(*args, **kwargs) for _ in range(num_iters)]
+        return (time.time() - start_time) / num_iters
+
+    return f
+
+
+def memory_access(
+    fun: tp.Callable,
+    unit: str | None = None,
+    static_argnums: int | tp.Iterable[int] = (),
+    backend: str | None = None,
+    donate_argnums: int | tp.Iterable[int] = (),
+) -> tp.Callable[..., chex.Scalar]:
+    """Creates a function that count the total memory access cost (bytes) of fun.
+
+    Args:
+        fun: Function to count memory access cost.
+        unit: Unit of memory access cost. None, K, M, G, T, P, E or Z.
+        static_argnums: An optional int or collection of ints that specify which positional
+            arguments to treat as static (compile-time constant).
+        backend: A string representing the XLA backend.
+        donate_argnums: Specify which positional argument buffers are "donated" to the computation.
+
+    Returns:
+        A wrapped version of fun.
+
+    NOTE:
+        Modify from
+        https://github.com/google-research/scenic/blob/main/scenic/common_lib/debug_utils.py
+    """
+
+    def f(*args, **kwargs) -> chex.Scalar:
+        computation = jax.xla_computation(
+            fun,
+            static_argnums=static_argnums,
+            backend=backend,
+            donate_argnums=donate_argnums,
+        )(*args, **kwargs)
+        module = computation.as_hlo_module()
+        client = jax.lib.xla_bridge.get_backend()
+        analysis = jax.lib.xla_client._xla.hlo_module_cost_analysis(client, module)
+        return _convert_size(analysis["bytes accessed"], unit, base=1024)
+
+    return f
 
 
 def count_params(tree: chex.ArrayTree, unit: str | None = None) -> chex.Scalar:
@@ -71,50 +159,10 @@ def count_params(tree: chex.ArrayTree, unit: str | None = None) -> chex.Scalar:
 
     Args:
         tree: A PyTree to count elements.
-        unit: A unit of number of parameters.
-            "K", "M", "G", "T", "P", "E" and "Z" are available.
+        unit: Unit of number of parameters. None, K, M, G, T, P, E or Z.
 
     Returns:
         Number of elements stored in tree.
     """
     tree_size = sum([x.size for x in tree_util.tree_leaves(tree)])
     return _convert_size(tree_size, unit)
-
-
-class TimeStats(tp.NamedTuple):
-    avg: float
-    std: float
-    max: float
-    min: float
-    median: float
-
-
-def time_fn(fn: tp.Callable, *args, n: int = 100, warmup: int = 0, **kwargs) -> TimeStats:
-    """Time a function.
-
-    Args:
-        fn: A function to time.
-        n: Number of steps to time.
-        warmup: Number of warmup steps.
-        *args, **kwargs: Arguments of `f`.
-
-    Returns:
-        A namedtuple of avg, std, max, min and median of elapsed times to run fn.
-    """
-
-    def call():
-        start_time = time.time()
-        jax.block_until_ready(fn(*args, **kwargs))
-        return time.time() - start_time
-
-    for _ in range(warmup):
-        call()
-
-    x = np.array([call() for _ in range(n)])
-    return TimeStats(
-        avg=np.mean(x),
-        std=np.std(x),
-        max=np.max(x),
-        min=np.min(x),
-        median=np.std(x),
-    )

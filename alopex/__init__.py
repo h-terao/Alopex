@@ -9,10 +9,11 @@ from ._src.registry import Registry
 from ._src.registry import registry
 from ._src.registry import register
 
-from ._src.stats import count_flops
-from ._src.stats import count_macs
+from ._src.stats import flop
+from ._src.stats import mac
+from ._src.stats import latency
+from ._src.stats import memory_access
 from ._src.stats import count_params
-from ._src.stats import time_fn
 
 from ._src.harvest import sow
 from ._src.harvest import harvest
