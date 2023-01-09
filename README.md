@@ -99,7 +99,7 @@ def fun(x, y):
     return x + y
 
 assert fun(1, 2) == 4
-assert plant(fun, tag="tracked")({"x": 10})(1, 2) == 12  # `plant` changes intermediate variables.
+assert plant(fun, tag="tracked")({"x": 10}, 1, 2) == 12  # `plant` changes intermediate variables.
 assert reap(fun, tag="tracked")(1, 2) == {"x": 2}  # `reap` collects intermediate variables.
 ```
 
