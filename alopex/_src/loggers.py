@@ -29,7 +29,9 @@ class Logger(ABC):
     """An abstract base class of loggers."""
 
     @abstractmethod
-    def log_summary(self, summary: Summary, step: int, epoch: int) -> None:
+    def log_summary(
+        self, summary: Summary, step: int | None = None, epoch: int | None = None
+    ) -> None:
         pass
 
     def log_hparams(self, hparams: dict) -> None:
@@ -54,7 +56,9 @@ class LoggerCollection(Logger):
     def __init__(self, *loggers) -> None:
         self._loggers: tp.Sequence[Logger] = loggers
 
-    def log_summary(self, summary: Summary, step: int, epoch: int) -> None:
+    def log_summary(
+        self, summary: Summary, step: int | None = None, epoch: int | None = None
+    ) -> None:
         for lg in self._loggers:
             lg.log_summary(summary, step, epoch)
 
@@ -74,15 +78,22 @@ class ConsoleLogger(Logger):
     """Print values on console.
 
     Args:
-        print_fun: Function to print summary or hparams.
+        print_fun: Function to print summary and hparams.
+            If None, use the `print` function.
     """
 
-    def __init__(self, print_fun: tp.Callable = print) -> None:
-        self._print_fun = print_fun
+    def __init__(self, print_fun: tp.Callable | None = None) -> None:
+        self._print_fun = print_fun or print
 
-    def log_summary(self, summary: Summary, step: int, epoch: int) -> None:
-        summary = dict(step=step, epoch=epoch, **summary)
-        self._print_fun(summary)
+    def log_summary(
+        self, summary: Summary, step: int | None = None, epoch: int | None = None
+    ) -> None:
+        values = dict()
+        if step is not None:
+            values["step"] = step
+        if epoch is not None:
+            values["epoch"] = epoch
+        self._print_fun(dict(values, **summary))
 
     def log_hparams(self, hparams: dict) -> None:
         self._print_fun(yaml.dump(hparams, allow_unicode=True))
@@ -99,25 +110,34 @@ class DiskLogger(Logger):
     """A logger that dumps log in local disk.
 
     Args:
-        log_dir: str
+        save_dir: Directory to save files. If the specified directory does not exist,
+            DiskLogger makes a directory.
+        log_file_name: Filename to write the logged summary.
+        hparams_file_name: Filename to write the logged hyperparams.
     """
-
-    log_file_name = "log.json"
-    hparams_file_name = "hparams.yaml"
 
     def __init__(
         self, save_dir: str | Path, log_file_name="log.json", hparams_file_name="hparams.yaml"
     ) -> None:
-        super().__init__()
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+
         self._log_file = Path(save_dir, log_file_name)
         self._hparams_file = Path(save_dir, hparams_file_name)
 
         self._log = []
         self._hparams = dict()
 
-    def log_summary(self, summary: Summary, step: int, epoch: int) -> None:
-        summary = dict(step=step, epoch=epoch, **summary)
-        self._log.append(summary)
+    def log_summary(
+        self, summary: Summary, step: int | None = None, epoch: int | None = None
+    ) -> None:
+        values = dict()
+        if step is not None:
+            values["step"] = step
+        if epoch is not None:
+            values["epoch"] = epoch
+        values = dict(values, **summary)
+
+        self._log.append(values)
         self._tmp_log_file.write_text(json.dumps(self._log, indent=2))
         self._tmp_log_file.rename(self._log_file)
 

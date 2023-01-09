@@ -63,7 +63,9 @@ class CometLogger(Logger):
                 **self._kwargs,
             )
 
-    def log_summary(self, summary: Summary, step: int, epoch: int) -> None:
+    def log_summary(
+        self, summary: Summary, step: int | None = None, epoch: int | None = None
+    ) -> None:
         self.experiment.log_metrics(summary, step=step, epoch=epoch)
 
     def log_hparams(self, hparams: dict) -> None:

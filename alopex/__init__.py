@@ -5,7 +5,7 @@ from ._src.functions import make_padding
 
 from ._src.epochs import train_epoch
 from ._src.epochs import eval_epoch
-from ._src.epochs import pred_epoch
+from ._src.epochs import predict_epoch
 
 from ._src.loggers import Logger
 from ._src.loggers import LoggerCollection
@@ -17,17 +17,17 @@ from ._src.registry import Registry
 from ._src.registry import registry
 from ._src.registry import register
 
-from ._src.harvest import sow
-from ._src.harvest import harvest
-from ._src.harvest import plant
-from ._src.harvest import call_and_reap
-from ._src.harvest import reap
-
 from ._src.stats import flop
 from ._src.stats import mac
 from ._src.stats import latency
 from ._src.stats import memory_access
 from ._src.stats import count_params
+
+from ._src.harvest import sow
+from ._src.harvest import harvest
+from ._src.harvest import plant
+from ._src.harvest import call_and_reap
+from ._src.harvest import reap
 
 from ._src.pytypes import TrainState
 from ._src.pytypes import Batch
