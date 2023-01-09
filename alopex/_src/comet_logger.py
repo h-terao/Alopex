@@ -45,24 +45,23 @@ class CometLogger(Logger):
 
     @property
     def experiment(self) -> Experiment:
-        if self._experiment is not None:
-            return self._experiment
-
-        if self._experiment_key is None:
-            self._experiment = Experiment(
-                api_key=self._api_key,
-                project_name=self._project_name,
-                **self._kwargs,
-            )
-            self._experiment.set_name(self._experiment_name)
-            self._experiment_key = self._experiment.get_key()
-        else:
-            self._experiment = ExistingExperiment(
-                api_key=self._api_key,
-                project_name=self._project_name,
-                previous_experiment=self._experiment_key,
-                **self._kwargs,
-            )
+        if self._experiment is None:
+            if self._experiment_key is None:
+                self._experiment = Experiment(
+                    api_key=self._api_key,
+                    project_name=self._project_name,
+                    **self._kwargs,
+                )
+                self._experiment.set_name(self._experiment_name)
+                self._experiment_key = self._experiment.get_key()
+            else:
+                self._experiment = ExistingExperiment(
+                    api_key=self._api_key,
+                    project_name=self._project_name,
+                    previous_experiment=self._experiment_key,
+                    **self._kwargs,
+                )
+        return self._experiment
 
     def log_summary(
         self, summary: Summary, step: int | None = None, epoch: int | None = None
