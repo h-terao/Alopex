@@ -37,6 +37,9 @@ class Logger(ABC):
     def log_hparams(self, hparams: dict) -> None:
         pass
 
+    def log_code(self, code_path: str | Path) -> None:
+        pass
+
     @abstractmethod
     def state_dict(self) -> LoggerState:
         pass
@@ -66,12 +69,19 @@ class LoggerCollection(Logger):
         for lg in self._loggers:
             lg.log_hparams(hparams)
 
+    def log_code(self, code_path: str | Path) -> None:
+        for lg in self._loggers:
+            lg.log_code(code_path)
+
     def state_dict(self) -> LoggerState:
         return [lg.state_dict() for lg in self._loggers]
 
     def load_state_dict(self, state: LoggerState) -> None:
         for lg, lg_state in zip(self._loggers, state):
             lg.load_state_dict(lg_state)
+
+    def __iter__(self):
+        yield from self._loggers
 
 
 class ConsoleLogger(Logger):
@@ -117,12 +127,17 @@ class DiskLogger(Logger):
     """
 
     def __init__(
-        self, save_dir: str | Path, log_file_name="log.json", hparams_file_name="hparams.yaml"
+        self,
+        save_dir: str | Path,
+        log_file_name: str | None = "log.json",
+        hparams_file_name: str | None = "hparams.yaml",
     ) -> None:
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-        self._log_file = Path(save_dir, log_file_name)
-        self._hparams_file = Path(save_dir, hparams_file_name)
+        self._log_file = None if log_file_name is None else Path(save_dir, log_file_name)
+        self._hparams_file = (
+            None if hparams_file_name is None else Path(save_dir, hparams_file_name)
+        )
 
         self._log = []
         self._hparams = dict()
@@ -130,21 +145,23 @@ class DiskLogger(Logger):
     def log_summary(
         self, summary: Summary, step: int | None = None, epoch: int | None = None
     ) -> None:
-        values = dict()
-        if step is not None:
-            values["step"] = step
-        if epoch is not None:
-            values["epoch"] = epoch
-        values = dict(values, **summary)
+        if self._log_file is not None:
+            values = dict()
+            if step is not None:
+                values["step"] = step
+            if epoch is not None:
+                values["epoch"] = epoch
+            values = dict(values, **summary)
 
-        self._log.append(values)
-        self._tmp_log_file.write_text(json.dumps(self._log, indent=2))
-        self._tmp_log_file.rename(self._log_file)
+            self._log.append(values)
+            self._tmp_log_file.write_text(json.dumps(self._log, indent=2))
+            self._tmp_log_file.rename(self._log_file)
 
     def log_hparams(self, hparams: dict) -> None:
-        self._hparams = dict(self._hparams, **hparams)
-        self._tmp_hparams_file.write_text(yaml.dump(self._hparams, allow_unicode=True))
-        self._tmp_hparams_file.rename(self._hparams_file)
+        if self._hparams_file is not None:
+            self._hparams = dict(self._hparams, **hparams)
+            self._tmp_hparams_file.write_text(yaml.dump(self._hparams, allow_unicode=True))
+            self._tmp_hparams_file.rename(self._hparams_file)
 
     def state_dict(self) -> LoggerState:
         return {"_log": self._log, "_hparams": self._hparams}
@@ -154,9 +171,9 @@ class DiskLogger(Logger):
         self._hparams = state["_hparams"]
 
     @property
-    def _tmp_log_file(self) -> Path:
-        return self._log_file.with_suffix("tmp")
+    def _tmp_log_file(self) -> Path | None:
+        return None if self._log_file is None else self._log_file.with_suffix("tmp")
 
     @property
-    def _tmp_hparams_file(self) -> Path:
-        return self._log_file.with_suffix("tmp")
+    def _tmp_hparams_file(self) -> Path | None:
+        return None if self._hparams_file is None else self._hparams_file.with_suffix("tmp")

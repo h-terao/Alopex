@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 
 from .loggers import Logger
 from .pytypes import Summary, LoggerState
@@ -70,6 +71,9 @@ class CometLogger(Logger):
 
     def log_hparams(self, hparams: dict) -> None:
         self.experiment.log_parameters(hparams)
+
+    def log_code(self, code_path: str | Path) -> None:
+        self.experiment.log_code(code_path)
 
     def state_dict(self) -> LoggerState:
         return {"experiment_key": self._experiment_key}
