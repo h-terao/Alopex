@@ -172,8 +172,8 @@ class DiskLogger(Logger):
 
     @property
     def _tmp_log_file(self) -> Path | None:
-        return None if self._log_file is None else self._log_file.with_suffix("tmp")
+        return None if self._log_file is None else self._log_file.with_suffix(".tmp")
 
     @property
     def _tmp_hparams_file(self) -> Path | None:
-        return None if self._hparams_file is None else self._hparams_file.with_suffix("tmp")
+        return None if self._hparams_file is None else self._hparams_file.with_suffix(".tmp")
