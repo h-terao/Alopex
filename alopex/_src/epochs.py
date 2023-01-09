@@ -24,7 +24,7 @@ __all__ = ["train_epoch", "eval_epoch", "predict_epoch"]
 def _replicate(tree, devices=None):
     # Modify flax.jax_util
     devices = devices or jax.local_devices()
-    return jax.device_put__replicated(tree, devices)
+    return jax.device_put_replicated(tree, devices)
 
 
 def _unreplicate(tree):
