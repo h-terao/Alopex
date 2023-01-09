@@ -32,12 +32,12 @@ def eval_step(train_state, batch):
     return scalars  # For evaluation, new_train_state is unnecessary.
 
 # Transform step function into epoch function.
-train_epoch = alopex.train_epoch(train_step, prefix="train/")
-eval_epoch = alopex.eval_epoch(eval_step, prefix="test/")
+train_fun = train_epoch(train_step, prefix="train/")
+eval_fun = eval_epoch(eval_step, prefix="test/")
 
 # Loop loaders until StopIteration is raised.
-train_state, summary = train_epoch(train_state, train_loader)
-summary |= eval_epoch(train_state, test_loader)
+train_state, summary = train_fun(train_state, train_loader)
+summary |= eval_fun(train_state, test_loader)
 
 # Summary is a correctly averaged scalars with the specified prefix.
 assert summary == {"train/loss": 0, "test/loss": 1}
