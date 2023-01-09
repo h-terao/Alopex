@@ -31,7 +31,7 @@ def flop(
         unit: Unit of FLOPs. None, K, M, G, T, P, E or Z.
         static_argnums: An optional int or collection of ints that specify which positional
             arguments to treat as static (compile-time constant).
-        backend: A string representing the XLA backend.
+        backend: A string representing the XLA backend. cpu, gpu or tpu.
         donate_argnums: Specify which positional argument buffers are "donated" to the computation.
 
     Returns:
@@ -42,7 +42,7 @@ def flop(
         https://github.com/google-research/scenic/blob/main/scenic/common_lib/debug_utils.py
     """
 
-    def f(*args, **kwargs) -> chex.Scalar:
+    def wrapped(*args, **kwargs) -> chex.Scalar:
         computation = jax.xla_computation(
             fun,
             static_argnums=static_argnums,
@@ -54,7 +54,7 @@ def flop(
         analysis = jax.lib.xla_client._xla.hlo_module_cost_analysis(client, module)
         return _convert_size(analysis["flops"], unit)
 
-    return f
+    return wrapped
 
 
 def mac(
@@ -72,46 +72,18 @@ def mac(
         unit: Unit of MACs. None, K, M, G, T, P, E or Z.
         static_argnums: An optional int or collection of ints that specify which positional
             arguments to treat as static (compile-time constant).
-        backend: A string representing the XLA backend.
+        backend: A string representing the XLA backend. cpu, gpu or tpu.
         donate_argnums: Specify which positional argument buffers are "donated" to the computation.
 
     Returns:
         A wrapped version of fun.
     """
 
-    f = flop(fun, unit, static_argnums, backend, donate_argnums)
-    f = lambda *args, **kwargs: f(*args, **kwargs) / 2
-    return f
+    def wrapped(*args, **kwargs) -> chex.Scalar:
+        flops = flop(fun, unit, static_argnums, backend, donate_argnums)(*args, **kwargs)
+        return flops / 2
 
-
-def latency(
-    fun: tp.Callable,
-    num_iters: int = 100,
-    warmup_iters: int = 0,
-) -> tp.Callable[..., float]:
-    """Creates a function that computes average latency (sec) of fun.
-
-    Args:
-        fun: Function to time.
-        num_iters: Number of iterations used to compute average runtime of fun.
-        warmup_iters: Number of iterations used to warmup fun.
-
-    Returns:
-        Average runtime of fun.
-    """
-
-    def call(*args, **kwargs) -> None:
-        fun(*args, **kwargs)
-        jax.random.uniform(jax.random.PRNGKey(0)).block_until_ready()
-
-    def f(*args, **kwargs):
-        [call(*args, **kwargs) for _ in range(warmup_iters)]
-
-        start_time = time.time()
-        [call(*args, **kwargs) for _ in range(num_iters)]
-        return (time.time() - start_time) / num_iters
-
-    return f
+    return wrapped
 
 
 def memory_access(
@@ -128,18 +100,14 @@ def memory_access(
         unit: Unit of memory access cost. None, K, M, G, T, P, E or Z.
         static_argnums: An optional int or collection of ints that specify which positional
             arguments to treat as static (compile-time constant).
-        backend: A string representing the XLA backend.
+        backend: A string representing the XLA backend. cpu, gpu or tpu.
         donate_argnums: Specify which positional argument buffers are "donated" to the computation.
 
     Returns:
         A wrapped version of fun.
-
-    NOTE:
-        Modify from
-        https://github.com/google-research/scenic/blob/main/scenic/common_lib/debug_utils.py
     """
 
-    def f(*args, **kwargs) -> chex.Scalar:
+    def wrapped(*args, **kwargs) -> chex.Scalar:
         computation = jax.xla_computation(
             fun,
             static_argnums=static_argnums,
@@ -151,7 +119,37 @@ def memory_access(
         analysis = jax.lib.xla_client._xla.hlo_module_cost_analysis(client, module)
         return _convert_size(analysis["bytes accessed"], unit, base=1024)
 
-    return f
+    return wrapped
+
+
+def latency(
+    fun: tp.Callable,
+    num_iters: int = 100,
+    warmup_iters: int = 0,
+) -> tp.Callable[..., float]:
+    """Creates a function that computes average latency (sec) of fun.
+
+    Args:
+        fun: Function to time.
+        num_iters: Number of iterations used to compute average runtime of fun.
+        warmup_iters: Number of iterations used to warmup fun.
+
+    Returns:
+        A wrapped version of fun.
+    """
+
+    def call(*args, **kwargs) -> None:
+        fun(*args, **kwargs)
+        jax.random.uniform(jax.random.PRNGKey(0)).block_until_ready()
+
+    def wrapped(*args, **kwargs):
+        [call(*args, **kwargs) for _ in range(warmup_iters)]
+
+        start_time = time.time()
+        [call(*args, **kwargs) for _ in range(num_iters)]
+        return (time.time() - start_time) / num_iters
+
+    return wrapped
 
 
 def count_params(tree: chex.ArrayTree, unit: str | None = None) -> chex.Scalar:

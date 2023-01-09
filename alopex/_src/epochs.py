@@ -13,9 +13,9 @@ from .pytypes import (
     Summary,
     Prediction,
     TrainState,
-    TrainFn,
-    EvalFn,
-    PredFn,
+    TrainFun,
+    EvalFun,
+    PredFun,
 )
 
 __all__ = ["train_epoch", "eval_epoch", "predict_epoch"]
@@ -120,7 +120,7 @@ def _summarize_scalars(
 
 
 def train_epoch(
-    train_fun: TrainFn,
+    train_fun: TrainFun,
     prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
@@ -139,12 +139,30 @@ def train_epoch(
     Returns:
         Function that updates models for an epoch.
 
+    Example:
+        ```python
+        def train_step(train_state, batch):
+            # Update train_state and compute metrics
+            new_train_state = ...
+            scalars = {"loss": 0.1, "acc1": 0.9}
+            return new_train_state, scalars
+
+        train_fun = train_epoch(train_step, prefix="train/")
+
+        # `train_fun` repeats `train_step` until `train_loader` stops.
+        new_train_state, summary = train_fun(train_state, train_loader)
+        assert summary == {"train/loss": 0.1, "train/acc1": 0.9}
+        ```
     """
     num_devices = len(devices or jax.local_devices())
     prefix = prefix or ""
     p_train_fun = jax.pmap(train_fun, axis_name=axis_name, devices=devices)
-    
-    def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None = None) -> tuple[TrainState, Summary]:
+
+    def wrapped(
+        train_state: TrainState,
+        iterable: tp.Iterable[Batch],
+        epoch_length: int | None = None,
+    ) -> tuple[TrainState, Summary]:
         train_state = _replicate(train_state, devices)
 
         accum_scalars = {}
@@ -165,12 +183,12 @@ def train_epoch(
         train_state = _unreplicate(train_state)
         summary = _summarize_scalars(prefix, accum_scalars)
         return train_state, summary
-    
-    return f
+
+    return wrapped
 
 
 def eval_epoch(
-    eval_fun: EvalFn,
+    eval_fun: EvalFun,
     prefix: str | None = None,
     prefetch: bool = True,
     axis_name: str = "batch",
@@ -189,11 +207,14 @@ def eval_epoch(
     Returns:
         Function to average summary of an epoch.
     """
-    num_devices = len(devices or jax.local_devices())
     prefix = prefix or ""
     p_eval_fun = jax.pmap(eval_fun, axis_name=axis_name, devices=devices)
-    
-    def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None = None) -> Summary:
+
+    def wrapped(
+        train_state: TrainState,
+        iterable: tp.Iterable[Batch],
+        epoch_length: int | None = None,
+    ) -> Summary:
         train_state = _replicate(train_state, devices)
 
         accum_scalars = {}
@@ -205,15 +226,16 @@ def eval_epoch(
 
         summary = _summarize_scalars(prefix, accum_scalars)
         return summary
-    
-    return f
+
+    return wrapped
+
 
 def predict_epoch(
-    predict_fun: PredFn,
+    predict_fun: PredFun,
     prefetch: bool = True,
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
-)  -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], Prediction]:
+) -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], Prediction]:
     """Changes a step function to stack PyTrees for an epoch.
 
     Args:
@@ -227,8 +249,12 @@ def predict_epoch(
         A function.
     """
     p_pred_fun = jax.pmap(predict_fun, axis_name=axis_name, devices=devices)
-    
-    def f(train_state: TrainState, iterable: tp.Iterable[Batch], epoch_length: int | None=None) -> Prediction:
+
+    def wrapped(
+        train_state: TrainState,
+        iterable: tp.Iterable[Batch],
+        epoch_length: int | None = None,
+    ) -> Prediction:
         train_state = _replicate(train_state, devices)
 
         outputs = []
@@ -244,5 +270,5 @@ def predict_epoch(
 
         output = tree_util.tree_map(lambda *xs: jnp.concatenate(xs, axis=0), *outputs)
         return output
-    
-    return f
+
+    return wrapped

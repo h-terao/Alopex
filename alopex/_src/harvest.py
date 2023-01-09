@@ -1,29 +1,4 @@
-"""Module for the harvest transformation.
-
-In short words, this is the reimplementation of `oryx.core` module.
-
-`plant` replaces the output of specified `sow`-ed values with the dict of
-first argument.
-
-Example:
-    sow and plant
-    ```python
-    from harvest import sow, plant
-
-    f = lambda x: sow(2*x, tag="x", name="v")
-    assert f(10) == 20
-    assert plant(f, tag="x")({"v": 0}, 10) == 0
-    ```
-
-    sow and reap
-    ```python
-    from harvest import sow, reap
-
-    f = lambda x: 2 * sow(x + 1, tag="x", name="v")
-    assert f(9) == 20
-    assert reap(f, tag="x")(9) == {"v": 10}
-    ```
-"""
+"""Reimplementation of the harvest transformation from `oryx.core`"""
 from __future__ import annotations
 import typing as tp
 import threading
@@ -85,17 +60,19 @@ def sow(value: chex.ArrayTree, *, tag: str, name: str, mode: str = "strict") -> 
     return value
 
 
-def harvest(f: tp.Callable, *, tag: str) -> tp.Callable:
-    """Apply harvest transformation to the function.
+def harvest(fun: tp.Callable, *, tag: str) -> tp.Callable:
+    """Creates a function that harvest sow-ed values in fun.
 
     Args:
-        f: A function to transform. Note that it should not be jit-ed
-            because harvest transformation requires f to be not-pure.
-            To jit f, jit the harvest transformed function.
+        fun: Function to harvest.
         tag: A tag of variable collection.
 
     Returns:
-        Harvest transformed function.
+        A wraped version of fun.
+
+    NOTE:
+        You cannot directly jit fun. If you'd like to jit fun,
+        jit the wrapped version of fun.
     """
 
     def wrapped(plants: dict[str, tp.Any], *args, **kwargs):
@@ -108,7 +85,7 @@ def harvest(f: tp.Callable, *, tag: str) -> tp.Callable:
         ctx_reaps[tag] = {}
         ctx_plants[tag] = plants
 
-        value = f(*args, **kwargs)
+        value = fun(*args, **kwargs)
 
         # Remove `tag` values from ctx
         reaped = ctx_reaps.pop(tag)
@@ -119,33 +96,52 @@ def harvest(f: tp.Callable, *, tag: str) -> tp.Callable:
     return wrapped
 
 
-def plant(f: tp.Callable, *, tag: str):
+def plant(fun: tp.Callable, *, tag: str) -> tp.Callable:
+    """Creates a function that replaces sow-ed values in fun to the specified `plants`.
+
+    Args:
+        fun: Function to plant values.
+        tag: A tag of value collection.
+
+    Returns:
+        A wrapped version of fun.
+    """
+
     def wrapped(plants: dict[str, chex.ArrayTree], *args, **kwargs):
-        value, _ = harvest(f, tag=tag)(plants, *args, **kwargs)
+        value, _ = harvest(fun, tag=tag)(plants, *args, **kwargs)
         return value
 
     return wrapped
 
 
-def call_and_reap(f: tp.Callable, *, tag: str) -> tp.Callable:
-    """
+def call_and_reap(fun: tp.Callable, *, tag: str) -> tp.Callable:
+    """Creates a function that returns outputs and collection of sow-ed values from fun.
+
+    Args:
+        fun: Function to collect sow-ed values.
+        tag: A tag of value collection.
 
     Returns:
-        A transformed function that returns a tuple of (out, reaped).
+        A wrapped version of fun.
     """
 
     def wrapped(*args, **kwargs):
-        return harvest(f, tag=tag)({}, *args, **kwargs)
+        return harvest(fun, tag=tag)({}, *args, **kwargs)
 
     return wrapped
 
 
-def reap(f: tp.Callable, *, tag: str):
-    """
+def reap(fun: tp.Callable, *, tag: str):
+    """Creates a function that returns outputs and collection of sow-ed values from fun.
+
+    Args:
+        fun: Function to collect sow-ed values.
+        tag: A tag of value collection.
+
     Returns:
-        A transformed function that returns reaped.
+        A wrapped version of fun.
     """
-    return lambda *args, **kwargs: call_and_reap(f, tag=tag)(*args, **kwargs)[1]
+    return lambda *args, **kwargs: call_and_reap(fun, tag=tag)(*args, **kwargs)[1]
 
 
 if __name__ == "__main__":
