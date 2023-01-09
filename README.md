@@ -13,7 +13,7 @@ $ pip install git+https://github.com/h-terao/Alopex
 
 ## Overview of Modules
 
-### Epochs (epochs.py)
+### Epoch Loop (epochs.py)
 
 Training/evaluation loop is a common routine to update model parameters and summarize metrics on datasets.
 
