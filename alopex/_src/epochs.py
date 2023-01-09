@@ -161,7 +161,7 @@ def train_epoch(
     def wrapped(
         train_state: TrainState,
         iterable: tp.Iterable[Batch],
-        epoch_length: int | None = None,
+        epoch_length: int = -1,
     ) -> tuple[TrainState, Summary]:
         train_state = _replicate(train_state, devices)
 
@@ -213,7 +213,7 @@ def eval_epoch(
     def wrapped(
         train_state: TrainState,
         iterable: tp.Iterable[Batch],
-        epoch_length: int | None = None,
+        epoch_length: int = -1,
     ) -> Summary:
         train_state = _replicate(train_state, devices)
 
@@ -253,7 +253,7 @@ def predict_epoch(
     def wrapped(
         train_state: TrainState,
         iterable: tp.Iterable[Batch],
-        epoch_length: int | None = None,
+        epoch_length: int = -1,
     ) -> Prediction:
         train_state = _replicate(train_state, devices)
 
