@@ -80,11 +80,11 @@ Example:
 def add(x, y):
     return x + y
 
-FLOPs = ap.flop(add)(1, 1)
-GFLOPs = ap.flop(add, unit="G")(1, 1)
-MACs = ap.mac(add)(1, 1)
-latency = ap.latency(add, num_iters=100, warmup_iters=100)(1, 1)  # seconds / forward pass.
-memory_access = ap.memory_access(add)(1, 1)
+FLOPs = flop(add)(1, 1)
+GFLOPs = flop(add, unit="G")(1, 1)
+MACs = mac(add)(1, 1)
+Latency = latency(add, num_iters=100, warmup_iters=100)(1, 1)  # seconds / forward pass.
+MemoryAccess = memory_access(add)(1, 1)
 ```
 
 Note that only `count_params` directly count parameters from PyTrees, does not transform any functions.
@@ -96,12 +96,12 @@ Because JAX employs the functional programming style, it is very difficult to co
 Example:
 ```python
 def fun(x, y):
-    x = ap.sow(2 * x, tag="tracked", name="x")
+    x = sow(2 * x, tag="tracked", name="x")
     return x + y
 
 assert fun(1, 2) == 4
-assert ap.plant(fun, tag="tracked")({"x": 10})(1, 2) == 12  # `plant` changes intermediate variables.
-assert ap.reap(fun, tag="tracked")(1, 2) == {"x": 2}  # `reap` collects intermediate variables.
+assert plant(fun, tag="tracked")({"x": 10})(1, 2) == 12  # `plant` changes intermediate variables.
+assert reap(fun, tag="tracked")(1, 2) == {"x": 2}  # `reap` collects intermediate variables.
 ```
 
 
