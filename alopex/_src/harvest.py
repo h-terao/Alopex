@@ -60,6 +60,42 @@ def sow(value: chex.ArrayTree, *, tag: str, name: str, mode: str = "strict") -> 
     return value
 
 
+def sow_grad(x: chex.Array, tag: str = "grad", *, name: str) -> chex.Array:
+    """Tag grads of arrays inside a function. The grads of tagged arrays can be
+        collected via `reap` method. Note that `reap` should wrap the grad function
+        to obtain gradients. This function is useful to obtain grads of intermediate values,
+        not leaves.
+
+    Args:
+        x: Array to take a grads.
+        tag: Tag name of grads.
+        name: Name of `x`.
+
+    Returns:
+        `x` itself.
+
+    Example:
+        >>> f = lambda x: 2 * sow_grad(jnp.sin(x), name="x2")
+        >>> f = reap(jax.grad(f))
+        >>> assert f(1.0) == {"x2": ...}
+    """
+
+    @jax.custom_vjp
+    def identity(x):
+        return x
+
+    def forward(x):
+        return x, x
+
+    def backward(x, dy):
+        dy = sow(dy, tag=tag, name=name)
+        _, vjp = jax.vjp(forward, x)
+        return vjp(dy)
+
+    identity.defvjp(forward, backward)
+    return identity(x)
+
+
 def harvest(fun: tp.Callable, *, tag: str) -> tp.Callable:
     """Creates a function that harvest sow-ed values in fun.
 
