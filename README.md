@@ -90,7 +90,7 @@ Note that only `count_params` directly count parameters from PyTrees, does not t
 
 ### Harvest Transformation (harvest.py)
 
-Because JAX employs the functional programming style, it is very difficult to collect and change intermediate variables. Such functions are useful for debugging or collecting variables where the complex position. Alopex provides the harvest transformations that create function to collect and change intermediate variables in the specified function.
+Because JAX employs the functional programming style, it is very difficult to collect and change intermediate variables. Such functions are useful for debugging or collecting variables where the complex position. Alopex provides the harvest transformations that create function to collect and change intermediate variables in the specified function. This feature is a reimplementation of [Oryx](https://github.com/jax-ml/oryx).
 
 Example:
 ```python
