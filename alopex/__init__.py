@@ -24,6 +24,7 @@ from ._src.stats import memory_access
 from ._src.stats import count_params
 
 from ._src.harvest import sow
+from ._src.harvest import sow_grad
 from ._src.harvest import harvest
 from ._src.harvest import plant
 from ._src.harvest import call_and_reap

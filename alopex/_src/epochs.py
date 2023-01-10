@@ -126,7 +126,8 @@ def train_epoch(
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
 ) -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], tuple[TrainState, Summary]]:
-    """Changes a step function to update models for an epoch.
+    """Creates a function that updates the model and summarizes scalars using `train_fun` until
+        an iterable object stops.
 
     Args:
         train_fn: Training function that updates train_state.
@@ -154,7 +155,6 @@ def train_epoch(
         assert summary == {"train/loss": 0.1, "train/acc1": 0.9}
         ```
     """
-    num_devices = len(devices or jax.local_devices())
     prefix = prefix or ""
     p_train_fun = jax.pmap(train_fun, axis_name=axis_name, devices=devices)
 
@@ -166,16 +166,14 @@ def train_epoch(
         train_state = _replicate(train_state, devices)
 
         accum_scalars = {}
-        for batch, weight, is_remainder in _modify_batches(
-            iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
-        ):
-            if is_remainder:
+        iterable = _modify_batches(iterable, epoch_length, prefetch, devices)
+        for batch_idx, (batch, weight, is_remainder) in enumerate(iterable):
+            if batch_idx == 0 and is_remainder:
                 msg = (
-                    "You set batch size that is not divisible by the number of devices "
-                    f"(#devices={num_devices}). This configuration will perform inefficient "
-                    "and not expected training behaviour. "
+                    "Batch size is not divisible by the number of devices for training. "
+                    "Such configuration is not allowed because it causes unexpected behaviours."
                 )
-                warnings.warn(msg)
+                raise RuntimeError(msg)
 
             train_state, scalars = p_train_fun(train_state, batch)
             accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
@@ -194,7 +192,8 @@ def eval_epoch(
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
 ) -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], Summary]:
-    """Changes a step function to evaluate models for an epoch.
+    """Creates a function that summarizes scalars using `eval_fun` until
+        an iterable object stops.
 
     Args:
         eval_fn: Evaluation function that returns metrics.
@@ -218,9 +217,14 @@ def eval_epoch(
         train_state = _replicate(train_state, devices)
 
         accum_scalars = {}
-        for batch, weight, _ in _modify_batches(
-            iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
-        ):
+        iterable = _modify_batches(iterable, epoch_length, prefetch, devices)
+        for batch_idx, (batch, weight, is_remainder) in enumerate(iterable):
+            if batch_idx == 0 and is_remainder:
+                msg = (
+                    "Batch size is not divisible by the number of devices for evaluation. "
+                    "Such configuration is inefficient and may takes longer times."
+                )
+                warnings.warn(msg)
             scalars = p_eval_fun(train_state, batch)
             accum_scalars = _accumulate_scalars(accum_scalars, scalars, weight)
 
@@ -236,7 +240,8 @@ def predict_epoch(
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
 ) -> tp.Callable[[TrainState, tp.Iterable[Batch], int | None], Prediction]:
-    """Changes a step function to stack PyTrees for an epoch.
+    """Creates a function that stacks outputs of `predict_fun` until
+        an iterable object stops.
 
     Args:
         eval_fn: Evaluation function that returns metrics.
@@ -258,9 +263,15 @@ def predict_epoch(
         train_state = _replicate(train_state, devices)
 
         outputs = []
-        for batch, _, is_remainder in _modify_batches(
-            iterable=iterable, epoch_length=epoch_length, prefetch=prefetch, devices=devices
-        ):
+        iterable = _modify_batches(iterable, epoch_length, prefetch, devices)
+        for batch_idx, (batch, _, is_remainder) in enumerate(iterable):
+            if batch_idx == 0 and is_remainder:
+                msg = (
+                    "Batch size is not divisible by the number of devices for prediction. "
+                    "Such configuration is inefficient and may takes longer times."
+                )
+                warnings.warn(msg)
+
             output = p_pred_fun(train_state, batch)
             if is_remainder:
                 output = tree_util.tree_map(lambda x: x[0], output)

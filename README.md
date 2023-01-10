@@ -5,7 +5,7 @@ Alopex is a small library that accelerates prototyping of deep learning projects
 
 ## Installation
 
-1. Setup JAX for your environment. See details in [jax reporitory](https://github.com/google/jax#installation).
+1. Install JAX for your environment. See details in [installation section of JAX project](https://github.com/google/jax#installation).
 2. Install Alopex via pip:
 ```bash
 $ pip install git+https://github.com/h-terao/Alopex
@@ -13,11 +13,13 @@ $ pip install git+https://github.com/h-terao/Alopex
 
 ## Overview of Modules
 
+In this section, I provide the short descriptions of Alopex's modules.
+
 ### Epoch Loop (epochs.py)
 
-Training/evaluation loop is a common routine to update model parameters and summarize metrics on datasets.
+Training and evaluation loops are common routines to experiment deep neural networks.
 
-Alopex provided easy-to-use functions that transform step functions into the epoch functions. These epoch functions automatically use multiple GPUs/TPUs and summarize scalars using batch size weighted average.
+Alopex provided easy-to-use functions that creates epoch functions from your step functions. The epoch functions automatically use multiple GPUs/TPUs and summarize scalars using batch size weighted average.
 
 Example:
 
@@ -45,12 +47,12 @@ assert summary == {"train/loss": 0, "test/loss": 1}
 
 ### Loggers (loggers.py, *_logger.py)
 
-Logging is another common routine of deep neural network training.
+Logging is another common routine.
 
-Alopex provides a simple logger classes such as `ConsoleLogger` and `DiskLogger`. The important point is that we can concat multiple loggers using `LoggerCollection` and log summary by calling `log_summary` once.
+Alopex provides some loggers to achieve logging with a few lines. Because loggers are designed simply, you can easily implement your own loggers.
 
-Currently, the following loggers are implemented:
-- LoggerCollection: Treat multiple loggers.
+Currently, Alopex supports the following loggers:
+- LoggerCollection: Concat multiple loggers.
 - ConsoleLogger: Print log on the console.
 - DiskLogger: Dump json formatted log in the disk.
 - CometLogger: Log values to Comet.ml
@@ -71,7 +73,7 @@ logger.load_state_dict(lg_state)  # restore loggers using state_dict.
 
 ### Statistic Transformation (stats.py)
 
-Statistic transformation creates functions that computes statistics of functions.
+Statistic transformation creates functions that computes statistics of the inner functions. Currently, Alopex provides `flop`, `mac`, `latency` and `memory_access` to transform functions. In addition, `count_params` is provided to count number of parameters stored in a PyTree.
 
 Example:
 ```python
@@ -84,13 +86,16 @@ GFLOPs = flop(add, unit="G")(1, 1)
 MACs = mac(add)(1, 1)
 Latency = latency(add, num_iters=100, warmup_iters=100)(1, 1)  # seconds / forward pass.
 MemoryAccess = memory_access(add)(1, 1)
-```
 
-Note that only `count_params` directly count parameters from PyTrees, does not transform any functions.
+param_size = count_params(variables)  # count number of elements in variables.
+```
 
 ### Harvest Transformation (harvest.py)
 
-Because JAX employs the functional programming style, it is very difficult to collect and change intermediate variables. Such functions are useful for debugging or collecting variables where the complex position. Alopex provides the harvest transformations that create function to collect and change intermediate variables in the specified function. This feature is a reimplementation of [Oryx](https://github.com/jax-ml/oryx).
+Bacause JAX employs the functional programming style, collecting and rewriting intermediate variables in  functions are difficult. Such functions can cause bugs, but useful to debug functions. Harvest transformations creates a function that can collect or rewrite intermediate variables of wrapped functions. This feature is a reimplementation of the harvest transformation of [Oryx](https://github.com/jax-ml/oryx).
+
+The first step of the harvest transformation is tagging intermediate variables using `sow` or `sow_grad`. The `sow` performs as an identity function in usual, but collect or rewrite the tagged values if the outer function is wrapped by the harvest transformations. `sow_grad` is similar to `sow`, but it collects gradients of the tagged values. Note that you need to wrap the outer function by `jax.grad` to obtain gradients using `sow_grad`.
+
 
 Example:
 ```python
@@ -99,11 +104,10 @@ def fun(x, y):
     return x + y
 
 assert fun(1, 2) == 4
-assert plant(fun, tag="tracked")({"x": 10}, 1, 2) == 12  # `plant` changes intermediate variables.
 assert reap(fun, tag="tracked")(1, 2) == {"x": 2}  # `reap` collects intermediate variables.
+assert plant(fun, tag="tracked")({"x": 10}, 1, 2) == 12  # `plant` changes intermediate variables.
 ```
 
+### Functions (functions.py)
 
-### Registry (registry.py)
-
-Registry is widely used object that holds registered objects and easy to access them without considering where the object is implemented.
+Alopex also provides some useful operations. This module will be extended in the future.
