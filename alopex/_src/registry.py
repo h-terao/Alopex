@@ -3,21 +3,16 @@ import functools
 
 
 class Registry(dict):
-    """A registry class.
+    """A registry class for callable objects."""
 
-    This is a registry object. Registry is a Python dict,
-    so you can use dict methods like pop, merge, etc.
-    """
-
-    def register(self, name: str, fn: tp.Callable | None = None, **kwargs) -> tp.Callable:
+    def register(self, name: str, fun_or_class: tp.Callable | None = None, **kwargs) -> tp.Callable:
         """Register a callable object in this registry.
 
         Args:
             name: Name of a callable object to register.
-            fn: A callable object to register.
+            fun_or_class: A callable object to register.
                 If None, this method works as a decorator.
-            **kwargs: Default values of a callable object. Useful to register
-                callable with different parameters.
+            **kwargs: Argument parameters to set using `functools.partial`.
 
         Raises:
             If name is already registered, raise an error.
@@ -25,17 +20,17 @@ class Registry(dict):
         if name in self:
             raise RuntimeError(f"{name} is already registered.")
 
-        if fn is None:
-            # decorator.
-            def deco(f):
-                self[name] = functools.partial(f, **kwargs)
-                return fn
+        if fun_or_class is None:
+
+            def deco(fun_or_class):
+                self[name] = functools.partial(fun_or_class, **kwargs)
+                return fun_or_class
 
             return deco
         else:
-            new_fn = functools.partial(fn, **kwargs)
-            self[name] = new_fn
-            return new_fn
+            fun_or_class = functools.partial(fun_or_class, **kwargs)
+            self[name] = fun_or_class
+            return fun_or_class
 
 
 # Create a global registry for the simple usage.

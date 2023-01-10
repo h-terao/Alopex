@@ -62,9 +62,9 @@ def sow(value: chex.ArrayTree, *, tag: str, name: str, mode: str = "strict") -> 
 
 def sow_grad(x: chex.Array, tag: str = "grad", *, name: str) -> chex.Array:
     """Tag values to take their gradients.
-    
-    Tag values inside a function. The gradients of tagged arrays can be collected via `reap` method. 
-    Note that `reap` should wrap the grad function to obtain gradients. 
+
+    Tag values inside a function. The gradients of tagged arrays can be collected via `reap` method.
+    Note that `reap` should wrap the grad function to obtain gradients.
     This function is useful to obtain grads of intermediate values.
 
     Args:
