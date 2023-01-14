@@ -5,10 +5,10 @@ from .loggers import Logger
 from .pytypes import Summary, LoggerState
 
 try:
-    ENABLE_COMET_ML = True
+    _COMET_AVAILABLE = True
     from comet_ml import Experiment, ExistingExperiment
 except ImportError:
-    ENABLE_COMET_ML = False
+    _COMET_AVAILABLE = False
 
 
 class CometLogger(Logger):
@@ -32,7 +32,7 @@ class CometLogger(Logger):
         experiment_key: str | None = None,
         **kwargs,
     ) -> None:
-        if not ENABLE_COMET_ML:
+        if not _COMET_AVAILABLE:
             raise ImportError(
                 "Failed to import comet_ml. Install comet_ml in advance.",
             )

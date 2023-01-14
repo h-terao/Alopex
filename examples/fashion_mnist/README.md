@@ -10,11 +10,13 @@ A simple example of Alopex with Flax and Optax.
 - optax
 - tensorflow
 - tensorflow-datasets
+- matplotlib
+- seaborn
 
 ### Usage
 
-To run this example, type the following command:
+The following command save logs and draw graphs in the directory `logs/`.
 
 ```bash
-$ python examples/fashion_mnist.py --out_dir <outputs>/ --batch_size 64
+$ python main.py --out_dir logs/
 ```

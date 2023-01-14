@@ -1,5 +1,6 @@
 from __future__ import annotations
 import typing as tp
+from pathlib import Path
 from functools import partial
 import math
 import argparse
@@ -146,7 +147,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", "-o", required=True, help="Output directory.")
     parser.add_argument("--seed", "-s", type=int, default=0, help="Random seed value.")
-    parser.add_argument("--epochs", "-e", type=int, default=100, help="Number of epochs.")
+    parser.add_argument("--epochs", "-e", type=int, default=64, help="Number of epochs.")
     parser.add_argument("--batch_size", "-b", type=int, default=64, help="Batch size.")
     parser.add_argument("--hidden_size", type=int, default=128, help="Hidden layer size.")
     parser.add_argument("--drouput", type=float, default=0, help="Dropout ratio.")
@@ -187,6 +188,27 @@ def main():
 
         # Logging summary.
         logger.log_summary(summary, step=int(train_state.step), epoch=epoch)
+
+    ap.plot_log_on_disk(
+        Path(args.out_dir, "loss.png"),
+        Path(args.out_dir, "log.json"),
+        y_keys=["train/loss", "val/loss"],
+        x_key="epoch",
+        xlabel="Epoch",
+        ylabel="Loss",
+        title="Cross-entropy loss",
+    )
+
+    ap.plot_log_on_disk(
+        Path(args.out_dir, "accuracy.png"),
+        Path(args.out_dir, "log.json"),
+        y_keys=["train/acc", "val/acc"],
+        x_key="epoch",
+        xlabel="Epoch",
+        ylabel="Accuracy [%]",
+        ylim=[0, 1.05],
+        title="Accuracy",
+    )
 
 
 if __name__ == "__main__":

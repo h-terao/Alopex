@@ -30,6 +30,8 @@ from ._src.harvest import plant
 from ._src.harvest import call_and_reap
 from ._src.harvest import reap
 
+from ._src.plotting import plot_log_on_disk
+
 from ._src.pytypes import TrainState
 from ._src.pytypes import Batch
 from ._src.pytypes import Summary

@@ -45,6 +45,8 @@ assert summary == {"train/loss": 0, "test/loss": 1}
 
 ### Loggers (loggers.py, *_logger.py)
 
+*NOTE: To use CometLogger, install comet-ml.*
+
 Logging is another common routine.
 
 Alopex provides some loggers to achieve logging with a few lines. Because loggers are designed simply, you can quickly implement your loggers.
@@ -105,6 +107,13 @@ assert fun(1, 2) == 4
 assert reap(fun, tag="tracked")(1, 2) == {"x": 2}  # `reap` collects intermediate variables.
 assert plant(fun, tag="tracked")({"x": 10}, 1, 2) == 12  # `plant` changes intermediate variables.
 ```
+
+### Plotting (plotting.py)
+
+*NOTE: install matlotlib and seaborn to use this module.*
+
+Visualizing the metric curve is an important step to check whether training works well. `alopex.plot_log_on_disk` draws the curve of your specified metrics.
+
 
 ### Functions (functions.py)
 
