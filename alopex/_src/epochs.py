@@ -167,8 +167,8 @@ def train_epoch(
 
         accum_scalars = {}
         iterable = _modify_batches(iterable, epoch_length, prefetch, devices)
-        for batch_idx, (batch, weight, is_remainder) in enumerate(iterable):
-            if batch_idx == 0 and is_remainder:
+        for batch, weight, is_remainder in iterable:
+            if is_remainder:
                 msg = (
                     "Batch size is not divisible by the number of devices for training. "
                     "Such configuration is not allowed because it causes unexpected behaviours."
@@ -219,7 +219,8 @@ def eval_epoch(
         accum_scalars = {}
         iterable = _modify_batches(iterable, epoch_length, prefetch, devices)
         for batch_idx, (batch, weight, is_remainder) in enumerate(iterable):
-            if batch_idx == 0 and is_remainder:
+            # Only check the 1st batch (If splitted, batch_idx=1 is also the 1st batch)
+            if batch_idx < 2 and is_remainder:
                 msg = (
                     "Batch size is not divisible by the number of devices for evaluation. "
                     "Such configuration is inefficient and may takes longer times."
@@ -265,7 +266,8 @@ def predict_epoch(
         outputs = []
         iterable = _modify_batches(iterable, epoch_length, prefetch, devices)
         for batch_idx, (batch, _, is_remainder) in enumerate(iterable):
-            if batch_idx == 0 and is_remainder:
+            # Only check the 1st batch (If splitted, batch_idx=1 is also the 1st batch)
+            if batch_idx < 2 and is_remainder:  
                 msg = (
                     "Batch size is not divisible by the number of devices for prediction. "
                     "Such configuration is inefficient and may takes longer times."
