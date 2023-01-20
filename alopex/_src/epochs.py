@@ -18,7 +18,7 @@ from .pytypes import (
     PredFun,
 )
 
-__all__ = ["train_epoch", "eval_epoch", "predict_epoch"]
+__all__ = ["train_epoch", "eval_epoch", "pred_epoch"]
 
 
 def _replicate(tree, devices=None):
@@ -130,7 +130,7 @@ def train_epoch(
         an iterable object stops.
 
     Args:
-        train_fn: Training function that updates train_state.
+        train_fun: Training function that updates train_state.
         prefix: Prefix of scalars.
         prefetch: If True, prefetch batches.
             This flag may shortens the processing time when you use GPUs.
@@ -138,10 +138,12 @@ def train_epoch(
         devices: Device list. If None, all visible devices are used.
 
     Returns:
-        Function that updates models for an epoch.
+        A wrapped version of `train_fun`.
 
     Example:
-        ```python
+        ::
+
+        ```
         def train_step(train_state, batch):
             # Update train_state and compute metrics
             new_train_state = ...
@@ -154,6 +156,7 @@ def train_epoch(
         new_train_state, summary = train_fun(train_state, train_loader)
         assert summary == {"train/loss": 0.1, "train/acc1": 0.9}
         ```
+
     """
     prefix = prefix or ""
     p_train_fun = jax.pmap(train_fun, axis_name=axis_name, devices=devices)
@@ -204,7 +207,8 @@ def eval_epoch(
         devices: Device to use. If None, all visible devices are used.
 
     Returns:
-        Function to average summary of an epoch.
+        A wrapped version of `eval_fun`.
+
     """
     prefix = prefix or ""
     p_eval_fun = jax.pmap(eval_fun, axis_name=axis_name, devices=devices)
@@ -222,8 +226,10 @@ def eval_epoch(
             # Only check the 1st batch (If splitted, batch_idx=1 is also the 1st batch)
             if batch_idx < 2 and is_remainder:
                 msg = (
-                    "Batch size is not divisible by the number of devices for evaluation. "
-                    "Such configuration is inefficient and may takes longer times."
+                    "Batch size is not a multiple of device count. "
+                    "Because alopex splits such batches into two parts and "
+                    "call `eval_fun` two times, evaluation may takes a longer time. "
+                    "If your dataset is very small, ignore this warning."
                 )
                 warnings.warn(msg)
             scalars = p_eval_fun(train_state, batch)
@@ -235,8 +241,8 @@ def eval_epoch(
     return wrapped
 
 
-def predict_epoch(
-    predict_fun: PredFun,
+def pred_epoch(
+    pred_fun: PredFun,
     prefetch: bool = True,
     axis_name: str = "batch",
     devices: list[chex.Device] | None = None,
@@ -245,16 +251,16 @@ def predict_epoch(
         an iterable object stops.
 
     Args:
-        eval_fn: Evaluation function that returns metrics.
+        pred_fun: A function that returns PyTrees to stack.
         prefetch: If True, prefetch batches.
             This flag may shortens the processing time when you use GPUs.
         axis_name: Axis name for `jax.pmap`.
         devices: Device to use. If None, all visible devices are used.
 
     Returns:
-        A function.
+        A wrapped version of `pred_fun`.
     """
-    p_pred_fun = jax.pmap(predict_fun, axis_name=axis_name, devices=devices)
+    p_pred_fun = jax.pmap(pred_fun, axis_name=axis_name, devices=devices)
 
     def wrapped(
         train_state: TrainState,
@@ -267,10 +273,12 @@ def predict_epoch(
         iterable = _modify_batches(iterable, epoch_length, prefetch, devices)
         for batch_idx, (batch, _, is_remainder) in enumerate(iterable):
             # Only check the 1st batch (If splitted, batch_idx=1 is also the 1st batch)
-            if batch_idx < 2 and is_remainder:  
+            if batch_idx < 2 and is_remainder:
                 msg = (
-                    "Batch size is not divisible by the number of devices for prediction. "
-                    "Such configuration is inefficient and may takes longer times."
+                    "Batch size is not a multiple of device count. "
+                    "Because alopex splits such batches into two parts and "
+                    "call `predict_fun` two times, evaluation may takes a longer time. "
+                    "If your dataset is very small, ignore this warning."
                 )
                 warnings.warn(msg)
 

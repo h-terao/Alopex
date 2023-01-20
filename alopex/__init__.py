@@ -5,7 +5,7 @@ from ._src.functions import make_padding
 
 from ._src.epochs import train_epoch
 from ._src.epochs import eval_epoch
-from ._src.epochs import predict_epoch
+from ._src.epochs import pred_epoch
 
 from ._src.loggers import Logger
 from ._src.loggers import LoggerCollection
