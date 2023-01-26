@@ -1,6 +1,7 @@
 """Reimplementation of the harvest transformation from `oryx.core`"""
 from __future__ import annotations
 import typing as tp
+from functools import wraps
 import threading
 
 import chex
@@ -21,55 +22,55 @@ def _get_dynamic_context(name: str) -> dict:
     return getattr(_thread_local, name, dict())
 
 
-def sow(value: chex.ArrayTree, *, tag: str, name: str, mode: str = "strict") -> chex.Array:
+def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict") -> chex.Array:
     """Tag values in a function if `sow` is called in a function transformed by
         harvest. Otherwise, this function performs as an identity function.
 
     Args:
         value: Array value.
-        tag: Tag name.
+        col: Tag name.
         name: Value name.
-        mode: strict, clobber or append. If strict, raise an error if (tag, name) is already
+        mode: strict, clobber or append. If strict, raise an error if (col, name) is already
             registered.
 
     Returns:
         Tagged value.
     """
     ctx_reaps = _get_dynamic_context("reaps")
-    if tag in ctx_reaps:
+    if col in ctx_reaps:
         if mode in ["strict", "clobber"]:
-            if mode == "strict" and name in ctx_reaps[tag]:
+            if mode == "strict" and name in ctx_reaps[col]:
                 msg = (
-                    f"strict mode is specified but (tag, name)=({tag}, {name}) "
+                    f"strict mode is specified but (col, name)=({col}, {name}) "
                     "is already registered. "
                 )
                 raise RuntimeError(msg)
-            ctx_reaps[tag].setdefault(name, {})
-            ctx_reaps[tag][name] = value
+            ctx_reaps[col].setdefault(name, {})
+            ctx_reaps[col][name] = value
         elif mode == "append":
-            ctx_reaps[tag].setdefault(name, tuple())
-            ctx_reaps[tag][name] += (value,)
+            ctx_reaps[col].setdefault(name, tuple())
+            ctx_reaps[col][name] += (value,)
         else:
             raise ValueError(f"Unknown mode ({mode}) is specified.")
 
     ctx_plants = _get_dynamic_context("plants")
-    if tag in ctx_plants:
-        if name in ctx_plants[tag]:
-            value = ctx_plants[tag][name]
+    if col in ctx_plants:
+        if name in ctx_plants[col]:
+            value = ctx_plants[col][name]
 
     return value
 
 
-def sow_grad(x: chex.Array, tag: str = "grad", *, name: str) -> chex.Array:
+def sow_grad(x: chex.Array, col: str = "grad", *, name: str) -> chex.Array:
     """Tag values to take their gradients.
 
-    Tag values inside a function. The gradients of tagged arrays can be collected via `reap` method.
+    Tag values inside a function. The gradients of colged arrays can be collected via `reap` method.
     Note that `reap` should wrap the grad function to obtain gradients.
     This function is useful to obtain grads of intermediate values.
 
     Args:
         x: Array to take a grads.
-        tag: Tag name of grads.
+        col: Tag name of grads.
         name: Name of `x`.
 
     Returns:
@@ -89,7 +90,7 @@ def sow_grad(x: chex.Array, tag: str = "grad", *, name: str) -> chex.Array:
         return x, x
 
     def backward(x, dy):
-        dy = sow(dy, tag=tag, name=name)
+        dy = sow(dy, col=col, name=name)
         _, vjp = jax.vjp(forward, x)
         return vjp(dy)
 
@@ -97,12 +98,12 @@ def sow_grad(x: chex.Array, tag: str = "grad", *, name: str) -> chex.Array:
     return identity(x)
 
 
-def harvest(fun: tp.Callable, *, tag: str) -> tp.Callable:
+def harvest(fun: tp.Callable, *, col: str) -> tp.Callable:
     """Creates a function that harvest sow-ed values in fun.
 
     Args:
         fun: Function to harvest.
-        tag: A tag of variable collection.
+        col: Name of variable collection to reap.
 
     Returns:
         A wraped version of fun.
@@ -116,69 +117,75 @@ def harvest(fun: tp.Callable, *, tag: str) -> tp.Callable:
         ctx_reaps = _thread_local.reaps = _get_dynamic_context("reaps")
         ctx_plants = _thread_local.plants = _get_dynamic_context("plants")
 
-        if tag in ctx_reaps or tag in ctx_plants:
-            raise RuntimeError(f"{tag} is already used. Use different tag.")
+        if col in ctx_reaps or col in ctx_plants:
+            raise RuntimeError(f"{col} is already used. Use different name.")
 
-        ctx_reaps[tag] = {}
-        ctx_plants[tag] = plants
+        ctx_reaps[col] = {}
+        ctx_plants[col] = plants
 
         value = fun(*args, **kwargs)
 
-        # Remove `tag` values from ctx
-        reaped = ctx_reaps.pop(tag)
-        ctx_plants.pop(tag)
+        reaped = ctx_reaps.pop(col)
+        ctx_plants.pop(col)
 
         return value, reaped
 
     return wrapped
 
 
-def plant(fun: tp.Callable, *, tag: str) -> tp.Callable:
+def plant(fun: tp.Callable, *, col: str | tp.Sequence[str]) -> tp.Callable:
     """Creates a function that replaces sow-ed values in fun to the specified `plants`.
 
     Args:
         fun: Function to plant values.
-        tag: A tag of value collection.
+        col: A col of value collection.
 
     Returns:
         A wrapped version of fun.
     """
 
     def wrapped(plants: dict[str, chex.ArrayTree], *args, **kwargs):
-        value, _ = harvest(fun, tag=tag)(plants, *args, **kwargs)
+        value, _ = harvest(fun, col=col)(plants, *args, **kwargs)
         return value
 
     return wrapped
 
 
-def call_and_reap(fun: tp.Callable, *, tag: str) -> tp.Callable:
+def call_and_reap(fun: tp.Callable, *, col: str) -> tp.Callable:
     """Creates a function that returns outputs and collection of sow-ed values from fun.
 
     Args:
         fun: Function to collect sow-ed values.
-        tag: A tag of value collection.
+        col: A name of variable collection to reap.
 
     Returns:
         A wrapped version of fun.
     """
 
+    @wraps(fun)
     def wrapped(*args, **kwargs):
-        return harvest(fun, tag=tag)({}, *args, **kwargs)
+        return harvest(fun, col=col)({}, *args, **kwargs)
 
     return wrapped
 
 
-def reap(fun: tp.Callable, *, tag: str):
-    """Creates a function that returns outputs and collection of sow-ed values from fun.
+def reap(fun: tp.Callable, *, col: str) -> tp.Callable:
+    """Creates a function that returns a collection of sow-ed values from fun.
 
     Args:
         fun: Function to collect sow-ed values.
-        tag: A tag of value collection.
+        col: A name of variable collection to reap.
 
     Returns:
         A wrapped version of fun.
     """
-    return lambda *args, **kwargs: call_and_reap(fun, tag=tag)(*args, **kwargs)[1]
+
+    @wraps(fun)
+    def wrapped(*args, **kwargs):
+        _, reaped = call_and_reap(fun, col=col)(*args, **kwargs)
+        return reaped
+
+    return wrapped
 
 
 if __name__ == "__main__":
@@ -187,12 +194,12 @@ if __name__ == "__main__":
 
     def f(x):
         print("compile...")
-        y = sow(x**2, tag="x", name="squared")
-        z = sow(2 * x, tag="x", name="twice")
+        y = sow(x**2, col="x", name="squared")
+        z = sow(2 * x, col="x", name="twice")
         return y, z
 
-    reap_jit = jax.vmap(reap(f, tag="x"))
+    reap_jit = jax.vmap(reap(f, col="x"))
     print(reap_jit(jnp.arange(10)))
 
-    reap_jit = jax.vmap(plant(f, tag="x"))
+    reap_jit = jax.vmap(plant(f, col="x"))
     print(reap_jit({"twice": 7 * jnp.ones(10)}, jnp.arange(10)))

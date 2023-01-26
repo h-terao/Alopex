@@ -30,6 +30,11 @@ from ._src.harvest import plant
 from ._src.harvest import call_and_reap
 from ._src.harvest import reap
 
+from ._src.configuration import set_default_config
+from ._src.configuration import using_config
+from ._src.configuration import configure
+from ._src.configuration import get_config
+
 from ._src.plotting import plot_log_on_disk
 
 from ._src.pytypes import TrainState
@@ -42,4 +47,4 @@ from ._src.pytypes import EvalFun
 from ._src.pytypes import PredFun
 
 
-__version__ = "0.0.1.alpha"
+__version__ = "0.0.2.alpha"
