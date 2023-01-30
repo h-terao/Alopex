@@ -37,6 +37,8 @@ from ._src.configuration import get_config
 
 from ._src.plotting import plot_log_on_disk
 
+from ._src import flax_util
+
 from ._src.pytypes import TrainState
 from ._src.pytypes import Batch
 from ._src.pytypes import Summary
