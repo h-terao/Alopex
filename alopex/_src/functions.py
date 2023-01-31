@@ -51,8 +51,8 @@ def accuracy(inputs: chex.Array, labels: chex.Array, k: int = 1) -> chex.Array:
 
 def make_padding(
     kernel_size: int | tp.Sequence[int],
-    stride=1,
-    dilation=1,
+    stride: int | tp.Sequence[int] = 1,
+    dilation: int | tp.Sequence[int] = 1,
     num_spatial_dims: int | None = None,
 ) -> tp.Sequence[tuple[int, int]]:
     """Creates a PyTorch-like padding parameter from kernel_size.
