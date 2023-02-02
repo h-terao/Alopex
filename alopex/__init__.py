@@ -1,6 +1,8 @@
 # flake8: noqa
 from . import flax_util
-from . import functions
+
+from ._src.functions import accuracy
+from ._src.functions import permutate
 
 from ._src.padding import make_padding
 
