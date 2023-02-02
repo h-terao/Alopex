@@ -22,7 +22,7 @@ def _get_dynamic_context(name: str) -> dict:
     return getattr(_thread_local, name, dict())
 
 
-def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict") -> chex.Array:
+def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict", reverse: bool = False) -> chex.Array:
     """Tag values in a function if `sow` is called in a function transformed by
         harvest. Otherwise, this function performs as an identity function.
 
@@ -32,6 +32,7 @@ def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict") -> 
         name: Value name.
         mode: strict, clobber or append. If strict, raise an error if (col, name) is already
             registered.
+        reverse: Only used if mode is append.
 
     Returns:
         Tagged value.
@@ -49,7 +50,10 @@ def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict") -> 
             ctx_reaps[col][name] = value
         elif mode == "append":
             ctx_reaps[col].setdefault(name, tuple())
-            ctx_reaps[col][name] += (value,)
+            if reverse:
+                ctx_reaps[col][name] = (value,) + ctx_reaps[col][name] + (value,)
+            else:
+                ctx_reaps[col][name] = ctx_reaps[col][name]
         else:
             raise ValueError(f"Unknown mode ({mode}) is specified.")
 
@@ -61,7 +65,7 @@ def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict") -> 
     return value
 
 
-def sow_grad(x: chex.Array, col: str = "grad", *, name: str) -> chex.Array:
+def sow_grad(x: chex.Array, col: str = "grad", *, name: str, mode: str = "strict", reverse: bool = False) -> chex.Array:
     """Tag values to take their gradients.
 
     Tag values inside a function. The gradients of colged arrays can be collected via `reap` method.
@@ -72,6 +76,7 @@ def sow_grad(x: chex.Array, col: str = "grad", *, name: str) -> chex.Array:
         x: Array to take a grads.
         col: Tag name of grads.
         name: Name of `x`.
+        mode: Mode.
 
     Returns:
         `x` itself.
@@ -90,7 +95,7 @@ def sow_grad(x: chex.Array, col: str = "grad", *, name: str) -> chex.Array:
         return x, x
 
     def backward(x, dy):
-        dy = sow(dy, col=col, name=name)
+        dy = sow(dy, col=col, name=name, mode=mode, reverse=not reverse)
         _, vjp = jax.vjp(forward, x)
         return vjp(dy)
 
