@@ -93,13 +93,12 @@ def sow_grad(x: chex.Array, col: str = "grad", *, name: str, mode: str = "strict
         return x
 
     def forward(x):
-        return x, x
+        return x, ()
 
-    def backward(x, dy):
-        dy = sow(dy, col=col, name=name, mode=mode, reverse=not reverse)
-        _, vjp = jax.vjp(forward, x)
-        return vjp(dy)
-
+    def backward(res, g):
+        g = sow(g, col=col, name=name, mode=mode, reverse=not reverse)
+        return (g,) 
+        
     identity.defvjp(forward, backward)
     return identity(x)
 
