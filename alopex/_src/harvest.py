@@ -4,6 +4,7 @@ import typing as tp
 from functools import wraps
 import threading
 
+import jax
 import chex
 
 __all__ = [
