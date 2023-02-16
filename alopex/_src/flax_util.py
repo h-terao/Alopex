@@ -54,7 +54,8 @@ def hk_like(flax_model: tp.Any, rng_keys: str | tp.Sequence[str] | None) -> Tran
         assert "mutable" not in kwargs, "Cannot specify `mutable` argument."
         variables = {"params": params, **state}
         rngs = make_rngs(rng)
-        outputs, new_state = flax_model.apply(variables, *args, rngs=rngs, mutable=True, **kwargs)
+        mutable = list(state)  # batch_stats, for example
+        outputs, new_state = flax_model.apply(variables, *args, rngs=rngs, mutable=mutable, **kwargs)
         return outputs, new_state
 
     return Transformed(
