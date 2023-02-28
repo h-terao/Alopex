@@ -54,7 +54,7 @@ def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict", rev
             if reverse:
                 ctx_reaps[col][name] = (value,) + ctx_reaps[col][name]
             else:
-                ctx_reaps[col][name] = ctx_reaps[col][name]
+                ctx_reaps[col][name] = ctx_reaps[col][name] + (value,)
         else:
             raise ValueError(f"Unknown mode ({mode}) is specified.")
 
