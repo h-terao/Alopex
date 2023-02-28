@@ -2,6 +2,7 @@
 from __future__ import annotations
 import typing as tp
 from functools import wraps
+from collections import deque
 import threading
 
 import jax
@@ -50,11 +51,13 @@ def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict", rev
             ctx_reaps[col].setdefault(name, {})
             ctx_reaps[col][name] = value
         elif mode == "append":
-            ctx_reaps[col].setdefault(name, tuple())
+            ctx_reaps[col].setdefault(name, deque())
             if reverse:
-                ctx_reaps[col][name] = (value,) + ctx_reaps[col][name]
+                ctx_reaps[col][name].appendleft(value)
+                # ctx_reaps[col][name] = (value,) + [ctx_reaps[col][name]]
             else:
-                ctx_reaps[col][name] = ctx_reaps[col][name] + (value,)
+                ctx_reaps[col][name].append(value)
+                # ctx_reaps[col][name] = ctx_reaps[col][name] + (value,)
         else:
             raise ValueError(f"Unknown mode ({mode}) is specified.")
 
@@ -133,6 +136,8 @@ def harvest(fun: tp.Callable, *, col: str) -> tp.Callable:
         reaped = ctx_reaps.pop(col)
         ctx_plants.pop(col)
 
+        # Deque -> List.
+        reaped = {key: list(val) if isinstance(val, deque) else val for key, val in reaped.items()}
         return value, reaped
 
     return wrapped
