@@ -52,7 +52,7 @@ def sow(value: chex.ArrayTree, *, col: str, name: str, mode: str = "strict", rev
         elif mode == "append":
             ctx_reaps[col].setdefault(name, tuple())
             if reverse:
-                ctx_reaps[col][name] = (value,) + ctx_reaps[col][name] + (value,)
+                ctx_reaps[col][name] = (value,) + ctx_reaps[col][name]
             else:
                 ctx_reaps[col][name] = ctx_reaps[col][name]
         else:
