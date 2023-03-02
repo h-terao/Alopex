@@ -110,9 +110,7 @@ def _accumulate_scalars(
     return dict(accum_scalars, **updates)
 
 
-def _summarize_scalars(
-    prefix: str, accum_scalars: dict[str, tuple[float, float]], **kwargs
-) -> dict[str, float]:
+def _summarize_scalars(prefix: str, accum_scalars: dict[str, tuple[float, float]], **kwargs) -> dict[str, float]:
     summary = {prefix + key: float(val / weight) for key, (val, weight) in accum_scalars.items()}
     for key, val in kwargs.items():
         summary[prefix + key] = val
@@ -140,10 +138,8 @@ def train_epoch(
     Returns:
         A wrapped version of `train_fun`.
 
-    Example:
-        ::
+    Example::
 
-        ```
         def train_step(train_state, batch):
             # Update train_state and compute metrics
             new_train_state = ...
@@ -155,8 +151,6 @@ def train_epoch(
         # `train_fun` repeats `train_step` until `train_loader` stops.
         new_train_state, summary = train_fun(train_state, train_loader)
         assert summary == {"train/loss": 0.1, "train/acc1": 0.9}
-        ```
-
     """
     prefix = prefix or ""
     p_train_fun = jax.pmap(train_fun, axis_name=axis_name, devices=devices)
