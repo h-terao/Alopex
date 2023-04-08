@@ -42,7 +42,7 @@ class ClearmlLogger(Logger):
 
     @property
     def experiment(self) -> Task:
-        if self._experiment is not None:
+        if self._experiment is None:
             self._experiment = Task.init(
                 project_name=self._project_name,
                 task_name=self._experiment_name,
