@@ -15,6 +15,7 @@ from ._src.loggers import LoggerCollection
 from ._src.loggers import ConsoleLogger
 from ._src.loggers import DiskLogger
 from ._src.comet_logger import CometLogger
+from ._src.clearml_logger import ClearmlLogger
 
 from ._src.registry import Registry
 from ._src.registry import registry
