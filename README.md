@@ -1,6 +1,6 @@
 <h1 align='center'>Alopex</h1>
 
-Alopex is a small library that accelerates the prototyping of deep learning projects with JAX. This library is developed for my research. **Currently, Alopex is in alpha version, and API will be changed in the future.**
+Alopex is a small library that accelerates the prototyping of deep learning projects with JAX. This library is developed for my research and version will be fixed when my experiments finish. **Currently, Alopex is in alpha version, and API will be changed in the future.**
 
 
 ## Installation
